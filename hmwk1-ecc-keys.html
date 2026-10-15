@@ -1,0 +1,1840 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Toy secp256k1 Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="HMWK 1: private key to public key with elliptic-curve scalar multiplication on the toy curve y^2 = x^3 + 7 (mod 17), plus a statistical exploration of the outputs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500;700&display=swap">
+</head>
+<body>
+<style>
+/* Layout: a drafting sheet. Title block across the top, the lattice "plate" on the left,
+   the calculation column on the right, the printout and notes below.
+   Light theme = whiteprint (blue ink on paper), dark theme = blueprint (white ink on Prussian blue). */
+:root{
+  --paper:#eef2fa; --sheet:#fafcff; --ink:#0f2657; --ink-2:#3a4f82; --ink-3:#66789f;
+  --rule:#0f2657; --hair:rgba(15,38,87,.16); --grid-a:rgba(15,38,87,.045); --grid-b:rgba(15,38,87,.09);
+  --g:#2450e0; --hot:#d2381c; --amber:#f0b000; --wash:rgba(240,176,0,.18); --on-ink:#fafcff;
+  --ec:#2450e0; --sha:#d47500; --seq-lo:#b8c7f2; --seq-hi:#132f9e; --heat:#0f2657;
+  --f-display:"Archivo","Archivo Narrow","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Martian Mono","JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+    --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+    --g:#6ccfff; --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --on-ink:#0d2856;
+    --ec:#2b9bc6; --sha:#d07a10; --seq-lo:#2c5a93; --seq-hi:#bfe8ff; --heat:#e8efff;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+  --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+  --g:#6ccfff; --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --on-ink:#0d2856;
+    --ec:#2b9bc6; --sha:#d07a10; --seq-lo:#2c5a93; --seq-hi:#bfe8ff; --heat:#e8efff;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; color:var(--ink); background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid-b) 1px,transparent 1px),linear-gradient(90deg,var(--grid-b) 1px,transparent 1px),
+    linear-gradient(var(--grid-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-a) 1px,transparent 1px);
+  background-size:80px 80px,80px 80px,16px 16px,16px 16px;
+  font-family:var(--f-body); font-size:16px; line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:28px 56px;
+}
+a{color:inherit}
+.sheet{max-width:1240px;margin:0 auto;border:2px solid var(--rule);outline:1px solid var(--rule);outline-offset:4px;display:grid}
+.mono{font-family:var(--f-mono)}
+.label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+
+/* hero */
+.hero{padding:28px 28px 22px;display:grid;gap:14px;border-bottom:2px solid var(--rule)}
+.hero h1{margin:0;font-family:var(--f-display);font-stretch:70%;font-weight:850;text-transform:uppercase;
+  font-size:clamp(34px,6.2vw,72px);line-height:.92;letter-spacing:-.005em;text-wrap:balance}
+.hero h1 .arr{color:var(--hot);font-stretch:100%}
+.hero .lede{margin:0;max-width:62ch;color:var(--ink-2);font-size:17px}
+.eq{font-family:var(--f-display);font-stretch:62%;font-weight:700;font-size:clamp(40px,8.5vw,108px);line-height:1;
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.08em .28em;letter-spacing:.005em}
+.eq .q{color:var(--hot)}
+.eq .dim{color:var(--ink-3);font-weight:500}
+
+/* title block */
+.tb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:2px solid var(--rule);margin:0;background:var(--sheet)}
+.tb div{padding:10px 14px 12px;border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);min-width:0}
+.tb dt{margin:0 0 4px}
+.tb dd{margin:0;font-family:var(--f-mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tb dd.hot{color:var(--hot);font-weight:700}
+.tb a{font-weight:700;text-underline-offset:3px}
+.themebtn{all:unset;cursor:pointer;font-family:var(--f-mono);font-size:13px;font-weight:500;border-bottom:1.5px solid currentColor}
+.themebtn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+/* work area */
+.work{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr);border-bottom:2px solid var(--rule)}
+@media (max-width:920px){.work{grid-template-columns:minmax(0,1fr)}}
+.panel{min-width:0;display:grid;align-content:start}
+.panel + .panel{border-left:2px solid var(--rule)}
+@media (max-width:920px){.panel + .panel{border-left:0;border-top:2px solid var(--rule)}}
+.ph{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--hair);background:var(--sheet)}
+.ph h2{margin:0;font-family:var(--f-display);font-stretch:80%;font-weight:800;text-transform:uppercase;font-size:20px;letter-spacing:.01em}
+.ph h2 .tag{font-family:var(--f-mono);font-stretch:100%;font-weight:500;font-size:11px;letter-spacing:.1em;color:var(--ink-3);margin-right:10px;vertical-align:3px}
+
+.plate-wrap{padding:14px 14px 4px}
+#plate{width:100%;height:auto;display:block;max-width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:4px 18px 12px;font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend svg{flex:none}
+.ochip{font-family:var(--f-mono);font-size:11px;padding:3px 8px;border:1.5px solid var(--hair);color:var(--ink-3)}
+.ochip.on{border-color:var(--hot);color:var(--hot);font-weight:700}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--hair);background:var(--sheet)}
+.btn{font-family:var(--f-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:10px 14px;
+  border:1.5px solid var(--ink);background:var(--sheet);color:var(--ink);cursor:pointer;border-radius:0;line-height:1}
+.btn:hover{background:var(--wash)}
+.btn.primary{background:var(--ink);color:var(--on-ink)}
+.btn.primary:hover{background:var(--ink-2)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,.seg input:focus-visible + span{outline:2px solid var(--amber);outline-offset:2px}
+.speed{display:flex;align-items:center;gap:8px;margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.speed input{width:110px;accent-color:var(--ink)}
+.caption{margin:0;padding:12px 18px 16px;font-size:15px;color:var(--ink);min-height:3.6em;border-top:1px dashed var(--hair);background:var(--sheet)}
+.caption b{font-family:var(--f-mono);font-weight:700;font-size:14px}
+
+/* calc column */
+.calc{background:var(--sheet)}
+.fields{display:grid;gap:16px;padding:16px 18px 18px;border-bottom:1px solid var(--hair)}
+.field{display:grid;gap:6px;min-width:0}
+.krow{display:flex;gap:12px;align-items:center}
+.krow input[type=number]{width:120px;font-family:var(--f-mono);font-size:22px;font-weight:700;padding:6px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--hot);border-radius:0}
+.krow input[type=range]{flex:1;min-width:0;accent-color:var(--hot)}
+select{font-family:var(--f-mono);font-size:14px;padding:8px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;width:100%;max-width:100%;min-width:0}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:480px){.two{grid-template-columns:minmax(0,1fr)}}
+.nc{text-transform:none}
+.seg{display:flex;flex-wrap:wrap}
+.seg label{position:relative;flex:1 1 auto}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;text-align:center;font-family:var(--f-mono);font-size:12px;padding:9px 10px;border:1.5px solid var(--ink);margin-left:-1.5px;cursor:pointer;white-space:nowrap}
+.seg label:first-child span{margin-left:0}
+.seg input:checked + span{background:var(--ink);color:var(--on-ink)}
+.note{font-size:14px;color:var(--ink-2);margin:0}
+.note.warn{color:var(--hot)}
+.opbox{padding:16px 18px;display:grid;gap:10px;border-bottom:1px solid var(--hair);min-width:0}
+.opbox h3{margin:0;font-family:var(--f-display);font-stretch:85%;font-weight:800;font-size:22px;text-transform:uppercase}
+.formula{font-family:var(--f-mono);font-size:13px;line-height:1.75;margin:0;overflow-x:auto;white-space:pre;color:var(--ink);font-variant-numeric:tabular-nums}
+.formula .k{color:var(--ink-3)}
+.formula .r{color:var(--hot);font-weight:700}
+.formula .s{color:var(--ink-3)}
+.bits{display:flex;flex-wrap:wrap;gap:4px}
+.bits span{font-family:var(--f-mono);font-size:15px;font-weight:700;width:30px;height:36px;display:grid;place-items:center;border:1.5px solid var(--ink);position:relative}
+.bits span.on{background:var(--amber);color:#0f2657;border-color:var(--amber)}
+.bits span.done{background:var(--wash)}
+.rules{padding:16px 18px 20px;display:grid;gap:8px}
+.rules h3{margin:0}
+.rules dl{margin:0;display:grid;gap:8px}
+.rules dt{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.rules dd{margin:0;font-family:var(--f-mono);font-size:13px;line-height:1.7}
+
+/* printout & lower sections */
+.block{border-bottom:2px solid var(--rule);background:var(--sheet);min-width:0}
+.block:last-child{border-bottom:0}
+.inner{padding:18px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:500;text-align:left;padding:8px 12px;border-bottom:1.5px solid var(--ink)}
+td{padding:8px 12px;border-bottom:1px solid var(--hair);white-space:nowrap}
+tr.pending td{opacity:.32}
+tr.active td{background:var(--wash)}
+tr.final td{font-weight:700;border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
+tr.final td.pk{color:var(--hot)}
+.badge{display:inline-block;font-size:10px;letter-spacing:.1em;padding:3px 6px;background:var(--hot);color:var(--sheet);margin-left:8px;vertical-align:1px}
+.sec{font-family:var(--f-mono);font-size:13px;margin:14px 0 0;color:var(--ink-2)}
+.sec b{color:var(--ink)}
+
+.orbit{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:12px;border:1.5px solid var(--hair);padding:6px 8px;display:grid;gap:2px;min-width:74px}
+.chip i{font-style:normal;color:var(--ink-3);font-size:10.5px}
+.chip.hit{border-color:var(--hot);box-shadow:inset 0 0 0 1.5px var(--hot)}
+.chip.inf{border-style:dashed}
+
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.split > *{min-width:0}
+.split > * + *{border-left:2px solid var(--rule)}
+@media (max-width:860px){.split{grid-template-columns:minmax(0,1fr)}.split > * + *{border-left:0;border-top:2px solid var(--rule)}}
+.prose{max-width:66ch}
+.prose p{margin:0 0 12px}
+.prose p:last-child{margin-bottom:0}
+.attempts{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0;min-height:30px}
+.attempts span{font-family:var(--f-mono);font-size:11px;padding:4px 6px;border:1px solid var(--hair);color:var(--ink-3)}
+.attempts span.found{border-color:var(--hot);color:var(--hot);font-weight:700}
+.result-line{font-family:var(--f-mono);font-size:14px;margin:0}
+
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:6px}
+@media (max-width:860px){.pipe{grid-template-columns:minmax(0,1fr)}}
+.pipe div{border:1.5px solid var(--ink);padding:12px 14px;margin:-0.75px;display:grid;gap:4px;align-content:start;position:relative;min-width:0}
+.pipe div b{font-family:var(--f-display);font-stretch:85%;font-weight:800;font-size:18px}
+.pipe div span{font-size:14px;color:var(--ink-2)}
+.pipe div code{font-family:var(--f-mono);font-size:12px;overflow-wrap:anywhere}
+.pipe div.hl{background:var(--wash)}
+
+details.code summary{cursor:pointer;font-family:var(--f-mono);font-size:13px;font-weight:500;padding:16px 18px;list-style:none}
+details.code summary::before{content:"+ ";color:var(--hot);font-weight:700}
+details.code[open] summary::before{content:"− "}
+details.code pre{margin:0;padding:0 18px 20px;font-family:var(--f-mono);font-size:12.5px;line-height:1.65;overflow-x:auto;color:var(--ink)}
+.foot{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between;align-items:center;padding:16px 18px;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);background:var(--sheet)}
+.foot a.next{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:22px;text-transform:uppercase;color:var(--ink);text-decoration:none;border-bottom:3px solid var(--hot)}
+
+/* SVG plate */
+.plot-bg{fill:var(--sheet)}
+.gl{stroke:var(--hair);stroke-width:1}
+.gl-major{stroke:var(--ink-3);stroke-width:1;opacity:.35}
+.tick{fill:var(--ink-3);font-family:var(--f-mono);font-size:10px}
+.axis-t{fill:var(--ink-2);font-family:var(--f-mono);font-size:11px;font-weight:700}
+.mirror{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 4;opacity:.7}
+.mirror-t{fill:var(--ink-3);font-family:var(--f-mono);font-size:9.5px}
+.cpt{fill:var(--sheet);stroke:var(--ink-3);stroke-width:1.4}
+.mk-visit{fill:var(--ink-2)}
+.walk{fill:none;stroke:var(--ink-3);stroke-width:1;opacity:.55}
+.mk-g{fill:var(--g);stroke:var(--sheet);stroke-width:2}
+.mk-cur{fill:none;stroke:var(--amber);stroke-width:3.5}
+.mk-b{fill:none;stroke:var(--g);stroke-width:2.5}
+.ln{stroke:var(--amber);stroke-width:2.2;stroke-linecap:round;fill:none}
+.ln-pt{fill:var(--amber)}
+.mk-third{fill:none;stroke:var(--hot);stroke-width:2.2;stroke-dasharray:3 2.5}
+.mk-res{fill:var(--hot);stroke:var(--sheet);stroke-width:2}
+.mk-q{fill:var(--hot);stroke:var(--sheet);stroke-width:2.5}
+.reflect{stroke:var(--hot);stroke-width:1.8;stroke-dasharray:4 3;fill:none}
+.arrowhead{fill:var(--hot)}
+.lbl{fill:var(--ink);font-family:var(--f-mono);font-size:10.5px;font-weight:500;paint-order:stroke;stroke:var(--sheet);stroke-width:3.5px;stroke-linejoin:round}
+.lbl-hot{fill:var(--hot);font-weight:700;font-size:12px}
+.lbl-g{fill:var(--g);font-weight:700}
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw var(--d,700ms) cubic-bezier(.3,.6,.3,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.pop{transform-box:fill-box;transform-origin:center;animation:pop .38s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pop{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+.fade{animation:fade .4s ease both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .draw{animation:none;stroke-dashoffset:0}
+  .pop,.fade{animation:none}
+}
+
+/* ---------- part strips and Part 2 ---------- */
+.strip{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;background:var(--ink);color:var(--on-ink);padding:9px 18px;border-bottom:2px solid var(--rule)}
+.strip b{font-family:var(--f-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.strip span{font-size:14px;opacity:.85}
+.band{padding:26px 28px 22px;border-bottom:2px solid var(--rule);display:grid;gap:12px}
+.band .h{margin:0;font-family:var(--f-display);font-stretch:70%;font-weight:850;text-transform:uppercase;font-size:clamp(34px,6vw,72px);line-height:.92;text-wrap:balance}
+.band .h .k{color:var(--hot);text-transform:none}
+.band .lede{margin:0;max-width:64ch;color:var(--ink-2);font-size:17px}
+.filters{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--sheet);border-bottom:2px solid var(--rule);
+  display:flex;flex-wrap:wrap;gap:12px 20px;align-items:end;padding:12px 18px}
+@media (max-width:820px){.filters{position:static}}
+.filters .f{display:grid;gap:5px;min-width:0}
+.filters .grow{flex:1 1 260px}
+.p2 select{font-size:13px;padding:7px 9px;width:auto}
+.p2 .krow{gap:10px}
+.p2 .krow input[type=number]{width:96px;font-size:14px;padding:6px 8px}
+.p2 .seg span{padding:8px 12px}
+.status{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);min-width:9ch}
+.fnote{flex-basis:100%;margin:0;font-size:13px;color:var(--ink-3)}
+.ph .q{font-size:15px;color:var(--ink-2);margin:0;flex-basis:100%}
+.p2 .inner{display:grid;gap:16px;min-width:0}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px}
+.charts.a{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+@media (max-width:820px){.charts,.charts.a{grid-template-columns:minmax(0,1fr)}}
+.chart{min-width:0;display:grid;gap:6px;align-content:start}
+.chart h3{margin:0;font-family:var(--f-mono);font-size:12px;font-weight:700;letter-spacing:.04em}
+.chart .sub{font-size:13px;color:var(--ink-2);margin:0}
+.cv{position:relative;width:100%}
+.cv canvas{display:block}
+.cv canvas.over{position:absolute;left:0;top:0}
+.svgw{width:100%;min-width:0}
+.svgw svg{display:block}
+.stack{display:grid;gap:14px}
+.p2 .legend{padding:0}
+.sw{width:12px;height:12px;display:inline-block}
+.sw.ec{background:var(--ec)} .sw.sha{background:var(--sha)}
+.sw.tick{width:14px;height:0;border-top:2px solid var(--ink)}
+.grad{width:140px;height:10px;display:inline-block;background:linear-gradient(90deg,var(--seq-lo),var(--seq-hi))}
+.gradh{width:140px;height:10px;display:inline-block;background:linear-gradient(90deg,transparent,var(--heat));border:1px solid var(--hair)}
+.findings{margin:0;padding:0;list-style:none;display:grid;gap:8px;max-width:84ch}
+.findings li{padding-left:22px;position:relative}
+.findings li::before{content:"→";position:absolute;left:0;color:var(--hot);font-weight:700}
+.findings b,.findings code{font-family:var(--f-mono);font-size:.88em}
+.p2 table{font-size:12.5px}
+.p2 td{white-space:normal;vertical-align:top;padding:8px 10px}
+.p2 th{padding:8px 10px;vertical-align:bottom}
+.p2 td.num,.p2 th.num{text-align:right}
+.p2 td.wrap{font-family:var(--f-body);font-size:14px;color:var(--ink-2);min-width:220px}
+.p2 tr.key td{font-weight:700}
+.dot{display:inline-block;width:9px;height:9px;margin-right:7px;vertical-align:0}
+.dot.ec{background:var(--ec)} .dot.sha{background:var(--sha)} .dot.exp{border:1.5px solid var(--ink-3)}
+details.data summary{cursor:pointer;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);list-style:none}
+details.data summary::before{content:"+ table view";color:var(--hot);font-weight:700}
+details.data[open] summary::before{content:"− table view"}
+details.data .tablewrap{margin-top:10px;max-height:360px;overflow:auto}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border:1.5px solid var(--ink);white-space:nowrap}
+.pill.req{background:var(--ink);color:var(--on-ink)}
+.pill.no{border-color:var(--ink-3);color:var(--ink-3)}
+.pill.bad{border-color:var(--hot);color:var(--hot);font-weight:700}
+.pill.ok{border-style:dashed}
+.score td{min-width:120px}
+.score td:first-child{font-weight:700;min-width:150px}
+.p2 .prose{max-width:70ch;display:grid;gap:12px}
+.p2 .prose h3{margin:8px 0 0;font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:19px}
+.p2 .prose p{margin:0}
+.callout{border:2px solid var(--ink);padding:14px 16px;background:var(--wash);font-size:17px;max-width:70ch}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--sheet);border:1.5px solid var(--ink);padding:7px 9px;font-family:var(--f-mono);font-size:11.5px;line-height:1.5;color:var(--ink-2);max-width:260px}
+#tip strong{display:block;color:var(--ink);font-size:13px}
+.p2.busy .inner{opacity:.55;transition:opacity .15s}
+.g-hair{stroke:var(--hair);stroke-width:1}
+.g-axis{stroke:var(--ink-3);stroke-width:1}
+.g-ref{stroke:var(--ink-2);stroke-width:1}
+.g-t{fill:var(--ink-3);font-family:var(--f-mono);font-size:10px}
+.g-tl{fill:var(--ink-2);font-family:var(--f-mono);font-size:10.5px}
+.b-ec{fill:var(--ec)} .b-sha{fill:var(--sha)}
+.b-exp{stroke:var(--ink);stroke-width:2}
+.b-hit{fill:transparent}
+.b-hit:hover{fill:var(--wash)}
+.h-cell{stroke:var(--sheet);stroke-width:1}
+.h-cell:hover{stroke:var(--hot);stroke-width:2}
+</style>
+
+<div class="sheet" id="top">
+  <header class="hero">
+    <div class="label">HMWK 1 · Public-key cryptography · Part 1 key generation · Part 2 statistics</div>
+    <h1>Private key <span class="arr">→</span> public key</h1>
+    <div class="eq" aria-live="polite" id="heroEq"></div>
+    <p class="lede">Ethereum turns a private key into a public key with elliptic-curve scalar multiplication on secp256k1. Part 1 does the same on a toy version of that curve, small enough to see every point: pick a private key <i>k</i>, and the page adds the base point <i>G</i> to itself until it reaches <i>Q = kG</i>, animating each addition. Part 2 repeats the experiment for many keys and asks whether the outputs look random.</p>
+  </header>
+
+  <dl class="tb" id="tb">
+    <div><dt class="label">Curve</dt><dd>y² = x³ + 7</dd></div>
+    <div><dt class="label">Field</dt><dd id="tbField">integers mod 17</dd></div>
+    <div><dt class="label">Points on curve</dt><dd id="tbCount">18 (incl. O)</dd></div>
+    <div><dt class="label">Base point G</dt><dd id="tbG">(1, 5)</dd></div>
+    <div><dt class="label">Order of G</dt><dd id="tbN">n = 9</dd></div>
+    <div><dt class="label">Private key</dt><dd id="tbK">k = 6</dd></div>
+    <div><dt class="label">Toy public key</dt><dd class="hot" id="tbQ">Q = (5, 8)</dd></div>
+    <div><dt class="label">Jump · print</dt><dd><a href="#part2">Part 2 ↓</a> · <button class="themebtn" id="themeBtn" type="button">Blueprint</button></dd></div>
+  </dl>
+
+  <div class="strip" id="part1"><b>Part 1 · Key generation</b><span>Compute Q = kG step by step on y² = x³ + 7 mod p</span></div>
+  <div class="work">
+    <section class="panel" aria-labelledby="plateTitle">
+      <div class="ph">
+        <h2 id="plateTitle"><span class="tag">Plate A</span>Every point of the curve</h2>
+        <span class="ochip" id="oChip" title="The point at infinity, the identity element">O · point at infinity</span>
+      </div>
+      <div class="plate-wrap">
+        <svg id="plate" viewBox="0 0 640 640" role="img" aria-labelledby="plateDesc">
+          <desc id="plateDesc">Lattice of all points (x, y) with y squared equal to x cubed plus 7 modulo p, with the multiples of G marked.</desc>
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <g id="staticLayer"></g>
+          <g id="dynLayer"></g>
+        </svg>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1 L13 7 L7 13 L1 7Z" class="mk-g"/></svg>G, base point</span>
+        <span><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" class="mk-cur"/></svg>current point</span>
+        <span><svg width="22" height="10" viewBox="0 0 22 10"><line x1="1" y1="5" x2="21" y2="5" class="ln"/></svg>chord / tangent line</span>
+        <span><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" class="mk-third"/></svg>third intersection</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" class="mk-res"/></svg>result</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4" class="cpt"/></svg>other curve points</span>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="btnPlay" type="button">▶ Play</button>
+        <button class="btn" id="btnStep" type="button">Step</button>
+        <button class="btn" id="btnFinish" type="button">Show result</button>
+        <button class="btn" id="btnReset" type="button">Restart</button>
+        <label class="speed" for="speed">Speed <input type="range" id="speed" min="0" max="5" step="1" value="2"> <span id="speedOut">1×</span></label>
+      </div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+    </section>
+
+    <section class="panel calc" aria-labelledby="calcTitle">
+      <div class="ph"><h2 id="calcTitle"><span class="tag">Inputs</span>Key &amp; curve</h2></div>
+      <div class="fields">
+        <div class="field">
+          <label class="label" for="kNum">Private key k</label>
+          <div class="krow">
+            <input type="number" id="kNum" min="1" max="999999" step="1" value="6" inputmode="numeric">
+            <input type="range" id="kRange" min="1" max="40" step="1" value="6" aria-label="Private key slider">
+          </div>
+        </div>
+        <div class="two">
+          <div class="field">
+            <label class="label" for="pSel">Prime p</label>
+            <select id="pSel">
+              <option value="17" selected>17 (assignment)</option>
+              <option value="43">43</option>
+              <option value="97">97</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="gSel">Base point G</label>
+            <select id="gSel"></select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="methodLbl">Method</span>
+          <div class="seg" role="radiogroup" aria-labelledby="methodLbl">
+            <label><input type="radio" name="method" id="mAdd" value="add" checked><span>Repeated addition</span></label>
+            <label><input type="radio" name="method" id="mDbl" value="dbl"><span>Double-and-add</span></label>
+          </div>
+        </div>
+        <p class="note" id="opCount"></p>
+      </div>
+      <div class="opbox" id="opbox">
+        <div class="label" id="opLabel">Operation</div>
+        <h3 id="opTitle"></h3>
+        <pre class="formula" id="opFormula"></pre>
+        <div id="bitWrap" hidden>
+          <div class="label" style="margin-bottom:6px">k in binary · read left to right</div>
+          <div class="bits" id="bits"></div>
+        </div>
+      </div>
+      <div class="rules">
+        <div class="label">Rules used (all arithmetic mod p)</div>
+        <dl>
+          <dt>Add P + Q, P ≠ Q</dt><dd>λ = (y<sub>2</sub> − y<sub>1</sub>) · (x<sub>2</sub> − x<sub>1</sub>)<sup>−1</sup></dd>
+          <dt>Double P + P</dt><dd>λ = 3x<sub>1</sub><sup>2</sup> · (2y<sub>1</sub>)<sup>−1</sup> &nbsp;<span class="k">(a = 0 here)</span></dd>
+          <dt>Result</dt><dd>x<sub>3</sub> = λ<sup>2</sup> − x<sub>1</sub> − x<sub>2</sub><br>y<sub>3</sub> = λ(x<sub>1</sub> − x<sub>3</sub>) − y<sub>1</sub></dd>
+          <dt>Special cases</dt><dd>P + (−P) = O, &nbsp;O + P = P, &nbsp;−(x, y) = (x, p − y)</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+  <section class="block" aria-labelledby="printTitle">
+    <div class="ph"><h2 id="printTitle"><span class="tag">Printout</span><span class="nc">G, 2G, 3G … kG</span></h2><span class="label" id="printMeta"></span></div>
+    <div class="inner">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Step</th><th>Multiple</th><th>Point</th><th>Computed as</th><th>Slope λ</th></tr></thead>
+          <tbody id="printBody"></tbody>
+        </table>
+      </div>
+      <p class="sec" id="secLine"></p>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="orbitTitle">
+    <div class="ph"><h2 id="orbitTitle"><span class="tag">Cycle</span>The multiples of G repeat</h2><span class="label" id="orbitMeta"></span></div>
+    <div class="inner">
+      <div class="orbit" id="orbit"></div>
+      <p class="note" id="orbitNote" style="margin-top:12px"></p>
+    </div>
+  </section>
+
+  <div class="block split">
+    <section aria-labelledby="revTitle">
+      <div class="ph"><h2 id="revTitle"><span class="tag">One-way?</span>Run it backwards</h2></div>
+      <div class="inner">
+        <div class="prose">
+          <p>Going forward took a handful of point additions. Going back means finding <i>k</i> from <i>Q</i> alone, the elliptic-curve discrete logarithm problem. On a toy curve you can just try every k.</p>
+        </div>
+        <div class="krow" style="margin-top:6px">
+          <button class="btn primary" id="btnBrute" type="button">Find k from Q</button>
+          <span class="result-line" id="bruteTarget"></span>
+        </div>
+        <div class="attempts" id="attempts" aria-live="polite"></div>
+        <p class="result-line" id="bruteOut"></p>
+      </div>
+    </section>
+    <section aria-labelledby="scaleTitle">
+      <div class="ph"><h2 id="scaleTitle"><span class="tag">Scale</span>Toy curve vs <span class="nc">secp256k1</span></h2></div>
+      <div class="inner">
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th></th><th>Toy</th><th>secp256k1 (Ethereum)</th></tr></thead>
+            <tbody>
+              <tr><td>Curve</td><td>y² = x³ + 7</td><td>y² = x³ + 7</td></tr>
+              <tr><td>Prime p</td><td id="scP">17</td><td>2<sup>256</sup> − 2<sup>32</sup> − 977</td></tr>
+              <tr><td>Order of G</td><td id="scN">9</td><td>n ≈ 1.158 × 10<sup>77</sup> (prime)</td></tr>
+              <tr><td>Private keys</td><td id="scK">1 … 8</td><td>1 … n − 1 (256 bits)</td></tr>
+              <tr><td>Forward cost</td><td id="scF">≤ 8 additions</td><td>~256 doublings + ~128 additions</td></tr>
+              <tr><td>Best known attack</td><td id="scB">try ≤ 8 keys</td><td>Pollard's rho, ~2<sup>128</sup> steps</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note" style="margin-top:12px">Same equation, same algorithm. The only change is size: with a 256-bit group, double-and-add still needs only a few hundred operations, while every known way back needs about 2<sup>128</sup>.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="block" aria-labelledby="ethTitle">
+    <div class="ph"><h2 id="ethTitle"><span class="tag">Context</span>Where this sits in Ethereum</h2></div>
+    <div class="inner">
+      <div class="pipe">
+        <div><b>Private key k</b><span>32 random bytes, 1 ≤ k &lt; n</span><code>0x4c0883a6…</code></div>
+        <div class="hl"><b>Q = k · G</b><span>scalar multiplication on secp256k1, the step computed in Part 1</span><code>64 bytes: x ‖ y</code></div>
+        <div><b>Keccak-256(x ‖ y)</b><span>a hash function; Part 2 compares the curve with one</span><code>32-byte digest</code></div>
+        <div><b>Address</b><span>last 20 bytes of the digest</span><code>0x…(40 hex digits)</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <details class="code">
+      <summary>Show the JavaScript that does the math</summary>
+      <pre id="codeOut"></pre>
+    </details>
+  </section>
+
+  
+  <div class="p2" id="part2">
+  <div class="strip"><b>Part 2 · Statistical exploration</b><span>Many keys, several base points and primes, compared with a hash function</span></div>
+  <header class="band">
+    <h2 class="h">Does <span class="k">k·G</span> look random?</h2>
+    <p class="lede">Scalar multiplication is a one-way function, but is its output random-looking the way a hash is? Below, every multiple <i>kG</i> of a base point is computed and put through the usual hash-function tests. Each test is run twice: on the toy curve and on a baseline, SHA-256(<i>k</i>) reduced to the same range [0, p).</p>
+  </header>
+
+  <dl class="tb">
+    <div><dt class="label">Curve</dt><dd>y² = x³ + 7 mod p</dd></div>
+    <div><dt class="label">Field prime p</dt><dd id="s2P"></dd></div>
+    <div><dt class="label">Points on curve</dt><dd id="s2E"></dd></div>
+    <div><dt class="label">Base point G</dt><dd id="s2G"></dd></div>
+    <div><dt class="label">Order of G</dt><dd id="s2N"></dd></div>
+    <div><dt class="label">Keys tested</dt><dd id="s2K"></dd></div>
+    <div><dt class="label">Baseline</dt><dd>SHA-256(k) mod p</dd></div>
+    <div><dt class="label">Back to</dt><dd><a href="#top">↑ Part 1</a></dd></div>
+  </dl>
+
+  <div class="filters" role="group" aria-label="Experiment settings">
+    <div class="f">
+      <label class="label" for="sP">Field prime p</label>
+      <select id="sP">
+        <option value="17">17 · assignment curve</option>
+        <option value="97">97</option>
+        <option value="211">211</option>
+        <option value="1051" selected>1051</option>
+        <option value="65419">65419 (16-bit)</option>
+      </select>
+    </div>
+    <div class="f">
+      <label class="label" for="sG">Base point G</label>
+      <select id="sG"></select>
+    </div>
+    <div class="f grow">
+      <label class="label" for="sKN">Private keys k = 1 … K</label>
+      <div class="krow">
+        <input type="range" id="sKR" min="2" max="1092" value="1092" aria-label="Upper end K of the key range">
+        <input type="number" id="sKN" min="2" max="1092" value="1092">
+      </div>
+    </div>
+    <div class="f">
+      <span class="label" id="coordLbl">Output analysed</span>
+      <div class="seg" role="radiogroup" aria-labelledby="coordLbl">
+        <label><input type="radio" name="coord" value="x" checked><span>x-coordinate</span></label>
+        <label><input type="radio" name="coord" value="y"><span>y-coordinate</span></label>
+      </div>
+    </div>
+    <span class="status" id="sStatus" aria-live="polite"></span>
+    <p class="fnote" id="fnote"></p>
+  </div>
+
+  <!-- Test A -->
+  <section class="block" id="testA" aria-labelledby="hA">
+    <div class="ph"><h2 id="hA"><span class="tag">Test A</span>Where the outputs land</h2>
+      <p class="q">Do the public keys spread over the plane without a visible pattern, and does the output track the input?</p></div>
+    <div class="inner">
+      <div class="charts a">
+        <div class="chart">
+          <h3>All points kG in the (x, y) plane</h3>
+          <p class="sub">Colour runs with k. Hover a point to see its key and its mirror partner (n − k)G.</p>
+          <div class="cv" id="cvOrbit"><canvas class="base"></canvas><canvas class="over"></canvas></div>
+          <div class="legend"><span>k = 1 <i class="grad"></i> k = K</span></div>
+        </div>
+        <div class="chart">
+          <h3 id="hA2">Input k → output coordinate</h3>
+          <p class="sub">Same keys, plotted against the key itself. Top: toy curve. Bottom: SHA-256 baseline.</p>
+          <div class="stack">
+            <div class="cv" id="cvKE"><canvas class="base"></canvas><canvas class="over"></canvas></div>
+            <div class="cv" id="cvKS"><canvas class="base"></canvas><canvas class="over"></canvas></div>
+          </div>
+          <div class="legend"><span><i class="sw ec"></i>toy curve kG</span><span><i class="sw sha"></i>SHA-256(k) mod p</span></div>
+        </div>
+      </div>
+      <ul class="findings" id="fA"></ul>
+      <details class="data"><summary></summary><div class="tablewrap"><table><thead><tr><th class="num">k</th><th>kG</th><th>SHA-256 baseline (x̃, ỹ)</th></tr></thead><tbody id="tA"></tbody></table></div></details>
+    </div>
+  </section>
+
+  <!-- Test B -->
+  <section class="block" id="testB" aria-labelledby="hB">
+    <div class="ph"><h2 id="hB"><span class="tag">Test B</span>How often each value appears</h2>
+      <p class="q">Distribution, frequency of individual values and apparent uniformity of the chosen coordinate.</p></div>
+    <div class="inner">
+      <div class="charts">
+        <div class="chart"><h3 id="hB1">Toy curve</h3><div class="svgw" id="svB1"></div></div>
+        <div class="chart"><h3 id="hB2">SHA-256 baseline</h3><div class="svgw" id="svB2"></div></div>
+      </div>
+      <div class="legend"><span><i class="sw ec"></i>toy curve</span><span><i class="sw sha"></i>SHA-256 baseline</span><span><i class="sw tick"></i>expected count if uniform</span></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>How many values in [0, p) appear …</th><th class="num">0 times</th><th class="num">1 time</th><th class="num">2 times</th><th class="num">3 times</th><th class="num">4+ times</th><th class="num">χ² / df</th></tr></thead>
+          <tbody id="tB"></tbody>
+        </table>
+      </div>
+      <ul class="findings" id="fB"></ul>
+    </div>
+  </section>
+
+  <!-- Test C -->
+  <section class="block" id="testC" aria-labelledby="hC">
+    <div class="ph"><h2 id="hC"><span class="tag">Test C</span>Bit balance</h2>
+      <p class="q">Write the coordinate in binary. How often is each bit a 1? A good hash gives 50% on every bit.</p></div>
+    <div class="inner">
+      <div class="chart"><h3 id="hC1">Share of outputs with bit = 1</h3><div class="svgw" id="svC"></div></div>
+      <div class="legend"><span><i class="sw ec"></i>toy curve</span><span><i class="sw sha"></i>SHA-256 baseline</span><span><i class="sw tick"></i>what a uniform value in [0, p) gives</span></div>
+      <ul class="findings" id="fC"></ul>
+      <details class="data"><summary></summary><div class="tablewrap"><table><thead><tr><th>Bit</th><th class="num">Toy curve</th><th class="num">SHA-256</th><th class="num">Uniform on [0, p)</th></tr></thead><tbody id="tC"></tbody></table></div></details>
+    </div>
+  </section>
+
+  <!-- Test D -->
+  <section class="block" id="testD" aria-labelledby="hD">
+    <div class="ph"><h2 id="hD"><span class="tag">Test D</span>Correlation and structure</h2>
+      <p class="q">Is there any relation between input and output, or between outputs of related inputs?</p></div>
+    <div class="inner">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Measure</th><th class="num"><span class="dot ec"></span>Toy curve</th><th class="num"><span class="dot sha"></span>SHA-256</th><th>What it tells us</th></tr></thead>
+          <tbody id="tD"></tbody>
+        </table>
+      </div>
+      <ul class="findings" id="fD"></ul>
+    </div>
+  </section>
+
+  <!-- Test E -->
+  <section class="block" id="testE" aria-labelledby="hE">
+    <div class="ph"><h2 id="hE"><span class="tag">Test E</span>Avalanche</h2>
+      <p class="q">Flip one bit of k. What share of the output bits flip? The ideal for a hash is 50% for every input/output bit pair (strict avalanche criterion).</p></div>
+    <div class="inner">
+      <div class="charts">
+        <div class="chart"><h3>Toy curve · <span id="avE"></span></h3><div class="svgw" id="svE1"></div></div>
+        <div class="chart"><h3>SHA-256 baseline · <span id="avS"></span></h3><div class="svgw" id="svE2"></div></div>
+      </div>
+      <div class="legend"><span>flip rate 50% <i class="gradh"></i> 0% or 100% (further from ideal = darker)</span></div>
+      <ul class="findings" id="fE"></ul>
+      <details class="data"><summary></summary><div class="tablewrap"><table><thead><tr><th>Input bit flipped</th><th class="num">Pairs</th><th class="num">Toy curve: output bits flipped</th><th class="num">SHA-256: output bits flipped</th></tr></thead><tbody id="tE"></tbody></table></div></details>
+    </div>
+  </section>
+
+  <!-- Scorecard -->
+  <section class="block" aria-labelledby="hS">
+    <div class="ph"><h2 id="hS"><span class="tag">Scorecard</span>Which properties matter where</h2>
+      <p class="q">Values update with the settings above.</p></div>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="score">
+          <thead><tr><th>Property</th><th>Test</th><th>Toy curve</th><th>SHA-256 baseline</th><th>One-way function (EC keys)</th><th>Cryptographic hash</th></tr></thead>
+          <tbody id="tS"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Discussion -->
+  <section class="block" aria-labelledby="hX">
+    <div class="ph"><h2 id="hX"><span class="tag">Discussion</span>What the statistics can and cannot say</h2></div>
+    <div class="inner">
+      <div class="prose">
+        <p class="callout">Statistics can show that a function is <b>not</b> random-looking. They can never show that it is <b>one-way</b>. One-wayness is a claim about computational cost, and on these toy curves every key can be recovered by trying all n − 1 of them in a few milliseconds, however random the outputs look.</p>
+
+        <h3>Properties that matter for a one-way function</h3>
+        <p><b>Easy forward, infeasible backward.</b> Double-and-add computes kG in about log₂ k steps. Going back is the elliptic-curve discrete logarithm problem. Its difficulty depends on the size of the group (secp256k1: n ≈ 2<sup>256</sup>, so about 2<sup>128</sup> steps with Pollard's rho) and on avoiding special curves. None of the tests above measures that.</p>
+        <p><b>A one-to-one map onto a large prime-order group.</b> k ↦ kG is a bijection from {1, …, n − 1} onto the points other than O (Test D: no two keys share a public key). A uniformly random private key therefore gives a uniformly random point of the group, which is what key generation needs. A prime order with cofactor 1, as in secp256k1 and in every prime offered above except 17, rules out small subgroups. On the assignment curve mod 17 the group has 18 points, and G = (1, 5) generates only 9 of them.</p>
+        <p><b>Structure is allowed, and needed.</b> (a + b)G = aG + bG holds every time (Test D). Diffie–Hellman key exchange and ECDSA signatures, including Ethereum's transaction signatures, rely on exactly this. The mirror symmetry kG ↔ −kG and the repeated x-values (Test B) are part of the same structure. The primes 61 and 127 are left out of the menu for a related reason: there the curve has exactly p points, an "anomalous" curve on which the discrete logarithm is easy.</p>
+
+        <h3>Properties that belong to hash functions</h3>
+        <p><b>Uniform values, balanced bits, avalanche, no relations.</b> A hash should behave like a random function: every output value about equally likely, every bit 1 half the time, each input-bit flip changing each output bit with probability ½, and no computable relation between H(a), H(b) and H(a + b). Collisions must exist, since a hash compresses arbitrary-length input, but must be infeasible to find.</p>
+        <p>The toy curve fails the "no relations" test completely. Anyone holding Q = kG can compute (k + 1)G = Q + G or 2kG without knowing k, and x(kG) = x((n − k)G) for every k. The value counts in Test B are also far too regular: each x that appears does so exactly twice. On the summary numbers (correlation near 0, χ² near 1, bit shares near the range limit, average avalanche close to the baseline) the curve and SHA-256 look alike. Those tests are necessary for a hash but weak: they miss structure that is algebraic rather than bit-level.</p>
+        <p><b>The top-bit bias is not about the curve.</b> Both functions show it, because both output a number below p, and p is not a power of two. For secp256k1, p is within 2<sup>33</sup> of 2<sup>256</sup>, so the same bias is about 2<sup>−224</sup> and cannot be measured.</p>
+
+        <h3>Why Ethereum uses both</h3>
+        <p>Ethereum needs the algebra of scalar multiplication for keys and signatures, and the randomness of a hash for addresses. So it computes Q = kG on secp256k1, then hashes the 64-byte public key with Keccak-256 and keeps the last 20 bytes as the address. The structured curve point never serves as an identifier directly; the hash removes the structure measured on this sheet.</p>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <footer class="foot">
+    <span>Toy parameters for teaching only. Real keys need a 256-bit group and a secure random source. Part 1's printout is also logged to the browser console; all computation runs in the browser.</span>
+    <a class="next" href="hmwk2-wallet-pipeline.html">HMWK 2: seed → address →</a>
+  </footer>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================= core math ================= */
+function mod(a, p) { const r = a % p; return r < 0 ? r + p : r; }
+
+function modInverse(a, p) {
+  // extended Euclid: returns t with a·t ≡ 1 (mod p)
+  let t = 0, newT = 1, r = p, newR = mod(a, p);
+  while (newR !== 0) {
+    const q = Math.floor(r / newR);
+    [t, newT] = [newT, t - q * newT];
+    [r, newR] = [newR, r - q * newR];
+  }
+  if (r !== 1) throw new Error(a + ' has no inverse mod ' + p);
+  return mod(t, p);
+}
+
+const O = null; // the point at infinity (identity element)
+
+function pointAdd(P, Q, p) {
+  if (P === O) return Q;
+  if (Q === O) return P;
+  if (P.x === Q.x && mod(P.y + Q.y, p) === 0) return O;       // P + (−P) = O
+  let lambda;
+  if (P.x === Q.x && P.y === Q.y) {
+    lambda = mod(3 * P.x * P.x * modInverse(2 * P.y, p), p);  // tangent (doubling)
+  } else {
+    lambda = mod((Q.y - P.y) * modInverse(Q.x - P.x, p), p);  // chord (addition)
+  }
+  const x3 = mod(lambda * lambda - P.x - Q.x, p);
+  const y3 = mod(lambda * (P.x - x3) - P.y, p);
+  return { x: x3, y: y3 };
+}
+
+function scalarMultiply(k, G, p) {
+  // double-and-add: read the bits of k from the most significant end
+  let R = O;
+  for (const bit of k.toString(2)) {
+    R = pointAdd(R, R, p);                 // double
+    if (bit === '1') R = pointAdd(R, G, p); // add
+  }
+  return R;
+}
+
+function curvePoints(p) {
+  const pts = [];
+  for (let x = 0; x < p; x++)
+    for (let y = 0; y < p; y++)
+      if (mod(y * y - (x * x * x + 7), p) === 0) pts.push({ x, y });
+  return pts;
+}
+
+function orderOf(G, p) {
+  let R = G, n = 1;
+  while (R !== O) { R = pointAdd(R, G, p); n++; }
+  return n;
+}
+
+/* ================= helpers ================= */
+const $ = id => document.getElementById(id);
+const eq = (A, B) => (A === O || B === O) ? A === B : (A.x === B.x && A.y === B.y);
+const fmt = P => P === O ? 'O' : `(${P.x}, ${P.y})`;
+const nm = m => m === 1 ? 'G' : m + 'G';
+const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const S = { p: 17, G: { x: 1, y: 5 }, k: 6, method: 'add', speed: 1, n: 9, pts: [] };
+let ops = [], rows = [], timeline = [], pos = 0, timer = null, playing = false, notice = '';
+
+/* explain one group operation step by step (same arithmetic as pointAdd) */
+function explain(P, Q, p) {
+  if (P === O) return { type: 'leftO', R: Q };
+  if (Q === O) return { type: 'rightO', R: P };
+  if (P.x === Q.x && mod(P.y + Q.y, p) === 0) return { type: 'vertical', R: O };
+  const dbl = P.x === Q.x && P.y === Q.y;
+  const numRaw = dbl ? 3 * P.x * P.x : Q.y - P.y;
+  const denRaw = dbl ? 2 * P.y : Q.x - P.x;
+  const num = mod(numRaw, p), den = mod(denRaw, p), inv = modInverse(den, p);
+  const lambda = mod(num * inv, p);
+  const x3raw = lambda * lambda - P.x - Q.x, x3 = mod(x3raw, p);
+  const y3raw = lambda * (P.x - x3) - P.y, y3 = mod(y3raw, p);
+  return { type: dbl ? 'double' : 'add', numRaw, denRaw, num, den, inv, lambda, x3raw, x3, y3raw, y3,
+           rStar: { x: x3, y: mod(-y3, p) }, R: { x: x3, y: y3 } };
+}
+
+function buildOps() {
+  const { p, G } = S; let k = S.k;
+  ops = []; rows = []; notice = '';
+  if (S.method === 'add' && k > 200) {
+    S.method = 'dbl'; $('mDbl').checked = true;
+    notice = `k = ${k} would need ${k - 1} additions one at a time, so the page switched to double-and-add.`;
+  }
+  if (S.method === 'add') {
+    let R = G; rows.push({ m: 1, P: G, how: 'base point', lambda: null });
+    for (let m = 2; m <= k; m++) {
+      const e = explain(R, G, p);
+      ops.push({ A: R, B: G, aName: nm(m - 1), bName: 'G', rName: nm(m), e, row: rows.length });
+      R = e.R; rows.push({ m, P: R, how: `${nm(m - 1)} + G`, lambda: e.lambda ?? null });
+    }
+  } else {
+    const bits = k.toString(2);
+    let R = G, m = 1; rows.push({ m: 1, P: G, how: 'leading 1 bit: start at G', lambda: null, bit: 0 });
+    for (let i = 1; i < bits.length; i++) {
+      let e = explain(R, R, p);
+      ops.push({ A: R, B: R, aName: nm(m), bName: nm(m), rName: nm(2 * m), e, row: rows.length, bit: i, step: 'double' });
+      R = e.R; m = 2 * m; rows.push({ m, P: R, how: `2 · ${nm(m / 2)}  (bit ${bits[i]}: double)`, lambda: e.lambda ?? null, bit: i });
+      if (bits[i] === '1') {
+        e = explain(R, G, p);
+        ops.push({ A: R, B: G, aName: nm(m), bName: 'G', rName: nm(m + 1), e, row: rows.length, bit: i, step: 'add' });
+        R = e.R; m = m + 1; rows.push({ m, P: R, how: `${nm(m - 1)} + G  (bit 1: add)`, lambda: e.lambda ?? null, bit: i });
+      }
+    }
+  }
+  timeline = [];
+  ops.forEach((op, i) => {
+    const t = op.e.type;
+    const phases = (t === 'add' || t === 'double') ? ['operands', 'line', 'third', 'reflect', 'settle']
+                 : t === 'vertical' ? ['operands', 'line', 'settle'] : ['operands', 'settle'];
+    phases.forEach(ph => timeline.push({ i, ph }));
+  });
+  // cross-check the step-by-step result against the compact implementation
+  const Q = rows[rows.length - 1].P, Q2 = scalarMultiply(S.k, G, p);
+  if (!eq(Q, Q2)) console.error('Mismatch between methods', fmt(Q), fmt(Q2));
+}
+
+/* ================= plate (SVG) ================= */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const a in attrs) e.setAttribute(a, attrs[a]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const PL = { W: 640, L: 42, R: 14, T: 14, B: 40 };
+let cell = 1;
+const sx = x => PL.L + (x + 0.5) * cell;
+const sy = y => PL.T + (S.p - 0.5 - y) * cell;
+
+function drawStatic() {
+  const p = S.p, g = $('staticLayer');
+  g.textContent = '';
+  cell = (PL.W - PL.L - PL.R) / p;
+  const H = PL.T + p * cell + PL.B;
+  $('plate').setAttribute('viewBox', `0 0 ${PL.W} ${H}`);
+  el('rect', { x: PL.L, y: PL.T, width: p * cell, height: p * cell, class: 'plot-bg' }, g);
+  const step = p <= 20 ? 1 : p <= 50 ? 5 : 10;
+  for (let i = 0; i <= p; i++) {
+    const X = PL.L + i * cell, Y = PL.T + i * cell;
+    if (cell >= 9 || i % step === 0) {
+      el('line', { x1: X, y1: PL.T, x2: X, y2: PL.T + p * cell, class: 'gl' }, g);
+      el('line', { x1: PL.L, y1: Y, x2: PL.L + p * cell, y2: Y, class: 'gl' }, g);
+    }
+  }
+  el('rect', { x: PL.L, y: PL.T, width: p * cell, height: p * cell, fill: 'none', class: 'gl-major' }, g);
+  for (let v = 0; v < p; v += step) {
+    const tx = el('text', { x: sx(v), y: PL.T + p * cell + 15, 'text-anchor': 'middle', class: 'tick' }, g); tx.textContent = v;
+    const ty = el('text', { x: PL.L - 7, y: sy(v) + 3.5, 'text-anchor': 'end', class: 'tick' }, g); ty.textContent = v;
+  }
+  const ax = el('text', { x: PL.L + p * cell, y: PL.T + p * cell + 32, 'text-anchor': 'end', class: 'axis-t' }, g); ax.textContent = 'x →';
+  const ay = el('text', { x: 4, y: PL.T + 8, class: 'axis-t' }, g); ay.textContent = 'y';
+  // mirror line y = p/2 : (x, y) and (x, p − y) are reflections
+  const my = sy(p / 2);
+  el('line', { x1: PL.L, y1: my, x2: PL.L + p * cell, y2: my, class: 'mirror' }, g);
+  const mt = el('text', { x: PL.L + 4, y: my - 5, class: 'mirror-t' }, g); mt.textContent = `mirror: (x, y) ↔ (x, ${p} − y)`;
+  const r = Math.max(2.2, cell * 0.2);
+  for (const P of S.pts) el('circle', { cx: sx(P.x), cy: sy(P.y), r, class: 'cpt' }, g);
+}
+
+function wrappedSegments(x1, y1, lam) {
+  const p = S.p, x0 = -0.5, xe = p - 0.5;
+  if (lam > p / 2) lam -= p;           // same line mod p, fewer wraps
+  const f = x => lam * (x - x1) + y1;
+  if (lam === 0) return [[x0, y1, xe, y1]];
+  const br = [x0, xe];
+  const lo = Math.min(f(x0), f(xe)) + 0.5, hi = Math.max(f(x0), f(xe)) + 0.5;
+  for (let m = Math.ceil(lo / p); m <= Math.floor(hi / p); m++) {
+    const xb = (m * p - 0.5 - y1) / lam + x1;
+    if (xb > x0 + 1e-9 && xb < xe - 1e-9) br.push(xb);
+  }
+  br.sort((a, b) => a - b);
+  const segs = [];
+  for (let i = 0; i + 1 < br.length; i++) {
+    const a = br[i], b = br[i + 1], off = Math.floor((f((a + b) / 2) + 0.5) / p) * p;
+    segs.push([a, f(a) - off, b, f(b) - off]);
+  }
+  return segs;
+}
+
+function phaseIndex(ph) { return ['operands', 'line', 'third', 'reflect', 'settle'].indexOf(ph); }
+
+function render() {
+  const g = $('dynLayer'); g.textContent = '';
+  const p = S.p, T = timeline.length, end = pos >= T;
+  const cur = end ? null : ops[timeline[pos].i];
+  const ph = end ? null : timeline[pos].ph;
+  const settled = end ? ops.length : timeline[pos].i + (ph === 'settle' ? 1 : 0);
+  const visible = rows.slice(0, settled + 1);
+  const dur = reduceMotion ? 0 : Math.round(1000 / S.speed);
+  g.style.setProperty('--d', Math.max(180, Math.round(dur * 0.8)) + 'ms');
+  const big = p <= 43;
+  const rr = Math.max(6, cell * 0.42);
+
+  // walk through the multiples computed so far
+  let d = '', pen = false;
+  for (const row of visible) {
+    if (row.P === O) { pen = false; continue; }
+    d += (pen ? 'L' : 'M') + sx(row.P.x).toFixed(1) + ',' + sy(row.P.y).toFixed(1); pen = true;
+  }
+  if (d) el('path', { d, class: 'walk' }, g);
+
+  // visited multiples + labels (latest name per point)
+  const names = new Map();
+  visible.forEach(row => { if (row.P !== O) names.set(row.P.x + ',' + row.P.y, { P: row.P, m: row.m }); });
+  const vr = Math.max(2.6, cell * 0.22);
+  names.forEach(({ P }) => el('circle', { cx: sx(P.x), cy: sy(P.y), r: vr, class: 'mk-visit' }, g));
+
+  // G
+  const G = S.G, s = Math.max(5.5, cell * 0.3);
+  el('path', { d: `M${sx(G.x)},${sy(G.y) - s} L${sx(G.x) + s},${sy(G.y)} L${sx(G.x)},${sy(G.y) + s} L${sx(G.x) - s},${sy(G.y)}Z`, class: 'mk-g' }, g);
+
+  const label = (P, text, cls) => {
+    const right = P.x < p * 0.72;
+    const t = el('text', { x: sx(P.x) + (right ? rr + 3 : -rr - 3), y: sy(P.y) - rr * 0.55, 'text-anchor': right ? 'start' : 'end', class: 'lbl ' + (cls || '') }, g);
+    t.textContent = text; return t;
+  };
+  if (big) names.forEach(({ P, m }, key) => {
+    if (key === G.x + ',' + G.y) return;
+    if (end && eq(P, rows[rows.length - 1].P)) return;
+    label(P, nm(m));
+  });
+  label(G, 'G', 'lbl-g');
+
+  let oOn = false;
+  if (cur) {
+    const e = cur.e, k = phaseIndex(ph);
+    // operands
+    if (cur.A !== O) el('circle', { cx: sx(cur.A.x), cy: sy(cur.A.y), r: rr, class: 'mk-cur' + (ph === 'operands' ? ' pop' : '') }, g);
+    if (cur.B !== O && !eq(cur.A, cur.B)) el('circle', { cx: sx(cur.B.x), cy: sy(cur.B.y), r: rr + 3, class: 'mk-b' + (ph === 'operands' ? ' pop' : '') }, g);
+    if (cur.A === O) oOn = true;
+    // line (shown while the operation is in progress)
+    if ((e.type === 'add' || e.type === 'double') && k >= 1 && k <= 3) {
+      // for larger p the wrapped line becomes a hatch, so only its grid points are drawn
+      const segs = p <= 43 ? wrappedSegments(cur.A.x, cur.A.y, e.lambda) : [];
+      const animate = ph === 'line' && !reduceMotion;
+      segs.forEach((sg, i) => {
+        const ln = el('line', { x1: sx(sg[0]), y1: sy(sg[1]), x2: sx(sg[2]), y2: sy(sg[3]), class: 'ln' + (animate ? ' draw' : ''), pathLength: 1 }, g);
+        if (animate) ln.style.animationDelay = Math.round(i * (dur * 0.8) / segs.length) + 'ms';
+        ln.style.opacity = 0.85;
+      });
+      for (let x = 0; x < p; x++) {
+        const y = mod(e.lambda * (x - cur.A.x) + cur.A.y, p), sz = Math.max(2.4, cell * 0.12);
+        const q = el('rect', { x: sx(x) - sz, y: sy(y) - sz, width: 2 * sz, height: 2 * sz, class: 'ln-pt' + (animate ? ' fade' : '') }, g);
+        if (animate) q.style.animationDelay = Math.round(dur * 0.75) + 'ms';
+      }
+    }
+    if (e.type === 'vertical' && k >= 1) {
+      el('line', { x1: sx(cur.A.x), y1: PL.T, x2: sx(cur.A.x), y2: PL.T + p * cell, class: 'ln' + (ph === 'line' && !reduceMotion ? ' draw' : ''), pathLength: 1 }, g);
+      oOn = true;
+    }
+    if (k >= 2 && k <= 3 && e.rStar) {
+      el('circle', { cx: sx(e.rStar.x), cy: sy(e.rStar.y), r: rr, class: 'mk-third' + (ph === 'third' ? ' pop' : '') }, g);
+      label(e.rStar, `−${cur.rName}`, 'lbl-hot');
+    }
+    if (k === 3 && e.rStar && e.R !== O) {
+      if (e.rStar.y !== e.R.y) {
+        const y1 = sy(e.rStar.y), y2 = sy(e.R.y), dir = y2 > y1 ? 1 : -1;
+        el('line', { x1: sx(e.R.x), y1: y1 + dir * rr, x2: sx(e.R.x), y2: y2 - dir * (rr + 2), class: 'reflect' + (ph === 'reflect' && !reduceMotion ? ' draw' : ''), pathLength: 1, 'marker-end': 'url(#ah)' }, g);
+      }
+      el('circle', { cx: sx(e.R.x), cy: sy(e.R.y), r: Math.max(4.5, cell * 0.27), class: 'mk-res' + (ph === 'reflect' ? ' pop' : '') }, g);
+      label(e.R, cur.rName, 'lbl-hot');
+    }
+    if (ph === 'settle') {
+      if (e.R === O) oOn = true;
+      else {
+        el('circle', { cx: sx(e.R.x), cy: sy(e.R.y), r: Math.max(4.5, cell * 0.27), class: 'mk-res pop' }, g);
+        label(e.R, cur.rName, 'lbl-hot');
+      }
+    }
+  } else {
+    const Q = rows[rows.length - 1].P;
+    if (Q === O) oOn = true;
+    else {
+      const q = Math.max(6, cell * 0.32);
+      el('rect', { x: sx(Q.x) - q, y: sy(Q.y) - q, width: 2 * q, height: 2 * q, class: 'mk-q' }, g);
+      label(Q, `Q = ${nm(S.k)}`, 'lbl-hot');
+    }
+  }
+  $('oChip').classList.toggle('on', oOn);
+  renderSide(cur, ph, settled, end);
+}
+
+/* ================= side panel, printout, captions ================= */
+function sub(s) { return s.replace(/_(\d)/g, '<sub>$1</sub>'); }
+
+function formulaHTML(cur, ph) {
+  const p = S.p, e = cur.e, k = phaseIndex(ph), A = cur.A, B = cur.B;
+  const L = [];
+  L.push(`<span class="k">P = ${cur.aName} = ${fmt(A)}${cur.e.type === 'double' ? '' : `,  Q = ${cur.bName} = ${fmt(B)}`}</span>`);
+  if (e.type === 'leftO') { L.push(`O + G = G <span class="s">(O is the identity)</span>`); return L.join('\n'); }
+  if (e.type === 'rightO') { L.push(`P + O = P`); return L.join('\n'); }
+  if (e.type === 'vertical') {
+    L.push(`x_1 = x_2 and y_1 + y_2 = ${A.y + B.y} ≡ 0 (mod ${p})`);
+    if (k >= 1) L.push(`vertical line, no third point on the grid`);
+    if (ph === 'settle') L.push(`<span class="r">result: O, the point at infinity</span>`);
+    return sub(L.join('\n'));
+  }
+  if (e.type === 'double') L.push(`λ = 3·x_1² · (2·y_1)⁻¹`);
+  else L.push(`λ = (y_2 − y_1) · (x_2 − x_1)⁻¹`);
+  if (k >= 1) {
+    if (e.type === 'double') L.push(`  = 3·${A.x}² · (2·${A.y})⁻¹ = ${e.numRaw} · ${e.denRaw}⁻¹`);
+    else L.push(`  = (${B.y} − ${A.y}) · (${B.x} − ${A.x})⁻¹ = ${e.numRaw} · (${e.denRaw})⁻¹`);
+    L.push(`  ≡ ${e.num} · ${e.den}⁻¹ (mod ${p})`);
+    L.push(`<span class="s">${e.den}⁻¹ = ${e.inv}, since ${e.den}·${e.inv} = ${e.den * e.inv} = ${Math.floor(e.den * e.inv / p)}·${p} + 1</span>`);
+    L.push(`λ ≡ ${e.num}·${e.inv} = ${e.num * e.inv} ≡ <b>${e.lambda}</b>`);
+  }
+  if (k >= 2) {
+    L.push(`x_3 = λ² − x_1 − x_2 = ${e.lambda * e.lambda} − ${A.x} − ${B.x} = ${e.x3raw} ≡ ${e.x3}`);
+    L.push(`third point on the line: (x_3, −y_3) = ${fmt(e.rStar)}`);
+  }
+  if (k >= 3) {
+    L.push(`y_3 = λ(x_1 − x_3) − y_1 = ${e.lambda}·(${A.x} − ${e.x3}) − ${A.y} = ${e.y3raw} ≡ ${e.y3}`);
+    L.push(`<span class="r">${cur.rName} = ${fmt(e.R)}</span>`);
+  }
+  return sub(L.join('\n'));
+}
+
+function captionText(cur, ph) {
+  const e = cur.e, p = S.p;
+  const what = e.type === 'double' ? `Double ${cur.aName} = ${fmt(cur.A)}` : `Add ${cur.aName} = ${fmt(cur.A)} and ${cur.bName} = ${fmt(cur.B)}`;
+  switch (ph) {
+    case 'operands':
+      if (e.type === 'leftO') return `Start from O, the point at infinity. <b>O + G = G</b>, so the cycle starts again.`;
+      if (e.type === 'vertical') return `${what}. They share x = ${cur.A.x} and their y-values add up to ${p}.`;
+      return `${what}. ${e.type === 'double' ? 'Doubling uses the tangent line at the point.' : 'Addition uses the line through both points.'}`;
+    case 'line':
+      if (e.type === 'vertical') return `The line through them is vertical. It meets the curve only "at infinity", so the sum is <b>O</b>.`;
+      return `${e.type === 'double' ? 'Tangent' : 'Chord'} with slope <b>λ = ${e.lambda}</b>. Mod ${p} the line wraps around the edges; the squares mark its ${p} grid points.`;
+    case 'third':
+      return `The line meets the curve in exactly one more point: <b>${fmt(e.rStar)}</b>.`;
+    case 'reflect':
+      return `Reflect across the mirror line, y → ${p} − y: <b>${cur.rName} = ${fmt(e.R)}</b>.`;
+    case 'settle':
+      return e.R === O ? `${cur.rName} = <b>O</b>. The next multiple starts the cycle again.` : `<b>${cur.rName} = ${fmt(e.R)}</b>. ${cur.row < rows.length - 1 ? 'On to the next operation.' : 'That was the last operation.'}`;
+  }
+  return '';
+}
+
+function renderSide(cur, ph, settled, end) {
+  const Q = rows[rows.length - 1].P;
+  // operation box
+  if (end) {
+    $('opLabel').textContent = ops.length ? `Done · ${ops.length} operation${ops.length > 1 ? 's' : ''}` : 'Done';
+    $('opTitle').innerHTML = `Q = ${nm(S.k)} = <span style="color:var(--hot)">${fmt(Q)}</span>`;
+    $('opFormula').innerHTML = ops.length
+      ? `<span class="k">Press Play or Step to watch each operation.\nThe last one was:</span>\n` + formulaHTML(ops[ops.length - 1], 'settle')
+      : `<span class="k">k = 1, so Q = G. Nothing to compute.</span>`;
+    $('caption').innerHTML = S.k === 1 ? `k = 1: the public key is G itself.` :
+      `Toy public key <b>Q = ${S.k}·G = ${fmt(Q)}</b>${Q === O ? ' (the point at infinity, which is not a valid public key)' : ''}. Press <b>Play</b> to replay the computation slowly, or <b>Step</b> through it.`;
+  } else {
+    const i = timeline[pos].i;
+    $('opLabel').textContent = `Operation ${i + 1} of ${ops.length} · ${cur.e.type === 'double' ? 'doubling' : cur.e.type === 'add' ? 'addition' : 'special case'}`;
+    $('opTitle').textContent = cur.e.type === 'double' ? `2 · ${cur.aName} = ${cur.rName}` : `${cur.aName} + ${cur.bName} = ${cur.rName}`;
+    $('opFormula').innerHTML = formulaHTML(cur, ph);
+    $('caption').innerHTML = captionText(cur, ph);
+  }
+  // bits
+  const bw = $('bitWrap');
+  bw.hidden = S.method !== 'dbl';
+  if (S.method === 'dbl') {
+    const bits = S.k.toString(2), wrap = $('bits'); wrap.textContent = '';
+    const curBit = end ? -1 : (cur.bit ?? -1);
+    [...bits].forEach((b, i) => {
+      const s = document.createElement('span'); s.textContent = b;
+      if (i === curBit) s.className = 'on'; else if (end || i < curBit) s.className = 'done';
+      s.title = i === 0 ? 'leading 1: start at G' : b === '1' ? 'double, then add G' : 'double';
+      wrap.appendChild(s);
+    });
+  }
+  // printout rows
+  [...$('printBody').children].forEach((tr, idx) => {
+    if (tr.classList.contains('final')) return;
+    tr.classList.toggle('pending', !end && idx > settled);
+    tr.classList.toggle('active', !end && cur && idx === cur.row);
+  });
+}
+
+function fillStatic() {
+  const { p, G, k, n } = S;
+  const Q = rows[rows.length - 1].P;
+  $('heroEq').innerHTML = `<span>Q = ${k}</span><span class="dim">·</span><span>${fmt(G)}</span><span class="dim">=</span><span class="q">${fmt(Q)}</span>`;
+  $('tbField').textContent = `integers mod ${p}`;
+  $('tbCount').textContent = `${S.pts.length + 1} (incl. O)`;
+  $('tbG').textContent = fmt(G);
+  $('tbN').textContent = `n = ${n}`;
+  $('tbK').textContent = `k = ${k}`;
+  $('tbQ').textContent = `Q = ${fmt(Q)}`;
+  $('plateTitle').innerHTML = `<span class="tag">Plate A</span>Every point of <span class="nc">y² = x³ + 7 mod ${p}</span>`;
+
+  const adds = k - 1, bits = k.toString(2), dbls = bits.length - 1, dadds = [...bits].filter(b => b === '1').length - 1;
+  $('opCount').innerHTML = (notice ? `<span class="note warn">${notice}</span><br>` : '') +
+    (S.method === 'add'
+      ? `Repeated addition: <b>${adds}</b> point addition${adds === 1 ? '' : 's'}. Double-and-add would need ${dbls + dadds}.`
+      : `Double-and-add: <b>${dbls}</b> doubling${dbls === 1 ? '' : 's'} + <b>${dadds}</b> addition${dadds === 1 ? '' : 's'} = ${dbls + dadds}. Repeated addition would need ${adds}.`);
+
+  // printout table
+  const tb = $('printBody'); tb.textContent = '';
+  rows.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    const cells = [i + 1, nm(row.m), fmt(row.P), row.how, row.lambda == null ? '—' : row.lambda];
+    cells.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  const fr = document.createElement('tr'); fr.className = 'final';
+  fr.innerHTML = `<td></td><td>${nm(k)}</td><td class="pk">${fmt(Q)}</td><td colspan="2">TOY PUBLIC KEY<span class="badge">Q</span></td>`;
+  tb.appendChild(fr);
+  $('printMeta').textContent = `${rows.length} row${rows.length > 1 ? 's' : ''} · ${S.method === 'add' ? 'repeated addition' : 'double-and-add'}`;
+  const hex = v => v.toString(16).padStart(2, '0');
+  $('secLine').innerHTML = Q === O ? `Q is the point at infinity: k is a multiple of n = ${n}, which is not a usable private key.`
+    : `Encoded the way Ethereum serialises an uncompressed public key (0x04 ‖ x ‖ y, one byte per coordinate here): <b>0x04${hex(Q.x)}${hex(Q.y)}</b>`;
+
+  // orbit
+  const ob = $('orbit'); ob.textContent = '';
+  let R = O; const hitM = mod(k, n) === 0 ? n : mod(k, n);
+  for (let m = 1; m <= n; m++) {
+    R = pointAdd(R, G, p);
+    const c = document.createElement('div'); c.className = 'chip' + (m === hitM ? ' hit' : '') + (R === O ? ' inf' : '');
+    const t = document.createElement('i'); t.textContent = nm(m);
+    const v = document.createElement('span'); v.textContent = fmt(R);
+    c.append(t, v); ob.appendChild(c);
+  }
+  $('orbitMeta').textContent = `n = ${n} distinct multiples`;
+  $('orbitNote').innerHTML = `${nm(n)} = O and the list starts over, so only k mod ${n} matters: k = ${hitM}, ${hitM + n}, ${hitM + 2 * n}, … all give Q = ${fmt(Q)}. This base point allows only ${n - 1} usable private keys.`;
+
+  // scale table, brute force target
+  $('scP').textContent = p; $('scN').textContent = n;
+  $('scK').textContent = `1 … ${n - 1}`;
+  $('scF').textContent = `≤ ${n - 2} additions`;
+  $('scB').textContent = `try ≤ ${n - 1} keys`;
+  $('bruteTarget').textContent = `Q = ${fmt(Q)}`;
+  $('attempts').textContent = ''; $('bruteOut').textContent = '';
+
+  // console printout
+  console.log(`%cTOY CURVE  y^2 = x^3 + 7 (mod ${p})   G = ${fmt(G)}   order n = ${n}   k = ${k}`, 'font-weight:bold');
+  rows.forEach(r => console.log(`${nm(r.m).padStart(8)} = ${fmt(r.P)}`));
+  console.log(`%cTOY PUBLIC KEY  Q = ${k}G = ${fmt(Q)}`, 'color:#d2381c;font-weight:bold');
+}
+
+/* ================= control flow ================= */
+function recompute(keepEnd = true) {
+  stop();
+  buildOps();
+  pos = timeline.length; // complete at rest: show the result
+  fillStatic();
+  render();
+}
+function setCurve() {
+  S.pts = curvePoints(S.p);
+  const sel = $('gSel'); sel.textContent = '';
+  const withOrder = S.pts.map(P => ({ P, n: orderOf(P, S.p) }));
+  withOrder.forEach(({ P, n }, i) => {
+    const o = document.createElement('option'); o.value = i; o.textContent = `${fmt(P)} · order ${n}`; sel.appendChild(o);
+  });
+  let idx = withOrder.findIndex(w => S.p === 17 ? (w.P.x === 1 && w.P.y === 5) : w.n > 2);
+  if (idx < 0) idx = 0;
+  sel.value = idx;
+  S.G = withOrder[idx].P; S.n = withOrder[idx].n; S._orders = withOrder;
+  const kMax = Math.min(200, Math.max(40, 2 * S.n));
+  $('kRange').max = kMax;
+  drawStatic();
+}
+function stop() { playing = false; clearTimeout(timer); $('btnPlay').textContent = '▶ Play'; }
+function tick() {
+  if (!playing) return;
+  if (pos >= timeline.length) { stop(); return; }
+  pos++; render();
+  if (pos >= timeline.length) { stop(); return; }
+  timer = setTimeout(tick, Math.round(1100 / S.speed));
+}
+$('btnPlay').addEventListener('click', () => {
+  if (!timeline.length) { render(); return; }
+  if (playing) { stop(); return; }
+  if (pos >= timeline.length) pos = 0;
+  playing = true; $('btnPlay').textContent = '❚❚ Pause';
+  render();
+  timer = setTimeout(tick, Math.round(1100 / S.speed));
+});
+$('btnStep').addEventListener('click', () => {
+  stop(); if (!timeline.length) return;
+  pos = pos >= timeline.length ? 0 : pos + 1; render();
+});
+$('btnFinish').addEventListener('click', () => { stop(); pos = timeline.length; render(); });
+$('btnReset').addEventListener('click', () => { stop(); if (!timeline.length) return; pos = 0; render(); });
+$('speed').addEventListener('input', e => { S.speed = SPEEDS[+e.target.value]; $('speedOut').textContent = S.speed + '×'; });
+
+function setK(v, from) {
+  let k = Math.floor(Number(v));
+  if (!Number.isFinite(k) || k < 1) return;
+  k = Math.min(k, 999999);
+  S.k = k;
+  if (from !== 'num') $('kNum').value = k;
+  if (from !== 'range') $('kRange').value = Math.min(k, +$('kRange').max);
+  recompute();
+}
+$('kNum').addEventListener('change', e => setK(e.target.value, 'num'));
+$('kNum').addEventListener('input', e => { if (e.target.value !== '') setK(e.target.value, 'num'); });
+$('kRange').addEventListener('input', e => setK(e.target.value, 'range'));
+$('pSel').addEventListener('change', e => { S.p = +e.target.value; setCurve(); recompute(); });
+$('gSel').addEventListener('change', e => { const w = S._orders[+e.target.value]; S.G = w.P; S.n = w.n; recompute(); });
+document.querySelectorAll('input[name=method]').forEach(r => r.addEventListener('change', e => { S.method = e.target.value; recompute(); }));
+
+// brute force: the "hard" direction, trivial on a toy curve
+let bruteTimer = null;
+$('btnBrute').addEventListener('click', () => {
+  clearTimeout(bruteTimer);
+  const Q = rows[rows.length - 1].P, wrap = $('attempts'); wrap.textContent = ''; $('bruteOut').textContent = '';
+  let R = O, t = 0;
+  const step = () => {
+    t++; R = pointAdd(R, S.G, S.p);
+    const s = document.createElement('span'); s.textContent = `${t}: ${fmt(R)}`;
+    wrap.appendChild(s);
+    if (eq(R, Q)) {
+      s.className = 'found';
+      $('bruteOut').innerHTML = `Found <b>k = ${t}</b> after ${t} tr${t === 1 ? 'y' : 'ies'}. Any k ≡ ${t} (mod ${S.n}) gives the same Q. On secp256k1 the same search would need about 10<sup>77</sup> tries.`;
+      return;
+    }
+    if (t > S.n) { $('bruteOut').textContent = 'Not found.'; return; }
+    bruteTimer = setTimeout(step, reduceMotion ? 0 : 140);
+  };
+  step();
+});
+
+// whiteprint / blueprint toggle (also follows the system setting)
+function currentDark() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function syncThemeBtn() { $('themeBtn').textContent = currentDark() ? 'Whiteprint' : 'Blueprint'; }
+$('themeBtn').addEventListener('click', () => {
+  document.documentElement.dataset.theme = currentDark() ? 'light' : 'dark'; syncThemeBtn();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeBtn);
+new MutationObserver(syncThemeBtn).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+syncThemeBtn();
+
+// the code panel shows the exact functions used above
+$('codeOut').textContent = [mod, modInverse, pointAdd, scalarMultiply].map(f => f.toString()).join('\n\n')
+  + `\n\n// Example\nconst p = 17, G = { x: 1, y: 5 }, k = 6;\nscalarMultiply(k, G, p);   // → ${fmt(scalarMultiply(6, { x: 1, y: 5 }, 17))}`;
+
+setCurve();
+recompute();
+})();
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ================= curve arithmetic ================= */
+function mod(a, p) { const r = a % p; return r < 0 ? r + p : r; }
+function modInverse(a, p) {
+  let t = 0, nt = 1, r = p, nr = mod(a, p);
+  while (nr !== 0) { const q = Math.floor(r / nr); [t, nt] = [nt, t - q * nt]; [r, nr] = [nr, r - q * nr]; }
+  return mod(t, p);
+}
+const O = null;
+function pointAdd(P, Q, p) {
+  if (P === O) return Q;
+  if (Q === O) return P;
+  if (P.x === Q.x && mod(P.y + Q.y, p) === 0) return O;
+  const lam = (P.x === Q.x && P.y === Q.y)
+    ? mod(mod(3 * P.x * P.x, p) * modInverse(2 * P.y, p), p)
+    : mod(mod(Q.y - P.y, p) * modInverse(Q.x - P.x, p), p);
+  const x3 = mod(lam * lam - P.x - Q.x, p);
+  return { x: x3, y: mod(lam * (P.x - x3) - P.y, p) };
+}
+const fmt = P => P === O ? 'O' : `(${P.x}, ${P.y})`;
+
+/* ================= SHA-256 (single function, FIPS 180-4) ================= */
+const K256 = new Uint32Array([
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+const W = new Uint32Array(64);
+function sha256(bytes) {
+  const len = bytes.length, total = ((len + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(total); m.set(bytes); m[len] = 0x80;
+  const bits = len * 8; m[total - 4] = bits >>> 24; m[total - 3] = bits >>> 16; m[total - 2] = bits >>> 8; m[total - 1] = bits;
+  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  for (let off = 0; off < total; off += 64) {
+    for (let i = 0; i < 16; i++) W[i] = (m[off + 4 * i] << 24) | (m[off + 4 * i + 1] << 16) | (m[off + 4 * i + 2] << 8) | m[off + 4 * i + 3];
+    for (let i = 16; i < 64; i++) {
+      const a = W[i - 15], b = W[i - 2];
+      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0;
+    }
+    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K256[i] + W[i]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+    h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+  }
+  return new Uint32Array([h0, h1, h2, h3, h4, h5, h6, h7]);
+}
+// cache of the first four 32-bit words of SHA-256(k) for k as 4 bytes big-endian
+let shaWords = new Uint32Array(0), shaUpTo = 0;
+function ensureSha(n) {
+  if (n <= shaUpTo) return;
+  const nw = new Uint32Array(4 * (n + 1)); nw.set(shaWords); shaWords = nw;
+  const buf = new Uint8Array(4);
+  for (let k = shaUpTo + 1; k <= n; k++) {
+    buf[0] = k >>> 24; buf[1] = k >>> 16; buf[2] = k >>> 8; buf[3] = k;
+    const h = sha256(buf); shaWords.set(h.subarray(0, 4), 4 * k);
+  }
+  shaUpTo = n;
+}
+// 64-bit word pair reduced mod p, done in two steps so every intermediate stays below 2^53
+const red64 = (hi, lo, p) => ((hi % p) * 4294967296 + lo) % p;
+
+/* ================= stats helpers ================= */
+function pearson(a, b) {
+  const n = a.length; if (n < 3) return NaN;
+  let ma = 0, mb = 0; for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+  let sab = 0, saa = 0, sbb = 0;
+  for (let i = 0; i < n; i++) { const da = a[i] - ma, db = b[i] - mb; sab += da * db; saa += da * da; sbb += db * db; }
+  return saa && sbb ? sab / Math.sqrt(saa * sbb) : NaN;
+}
+function ranks(a) {
+  const idx = Array.from(a, (_, i) => i).sort((i, j) => a[i] - a[j]);
+  const r = new Float64Array(a.length);
+  for (let i = 0; i < idx.length;) {
+    let j = i; while (j + 1 < idx.length && a[idx[j + 1]] === a[idx[i]]) j++;
+    const avg = (i + j) / 2 + 1; for (let t = i; t <= j; t++) r[idx[t]] = avg; i = j + 1;
+  }
+  return r;
+}
+const bitLen = v => v <= 0 ? 1 : Math.floor(Math.log2(v)) + 1;
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const pct = (v, d = 1) => Number.isFinite(v) ? (100 * v).toFixed(d) + '%' : '—';
+const f3 = v => Number.isFinite(v) ? (v < 0 ? '−' : '') + Math.abs(v).toFixed(3) : '—';
+const int = v => v.toLocaleString('en-US');
+
+/* ================= state & computation ================= */
+const S = { p: 1051, gi: 0, K: null, coord: 'x' };
+let F = null;   // field data for current p
+let D = null;   // results
+
+function setupField(p) {
+  const sqCount = new Uint8Array(p), sqrt = new Int32Array(p).fill(-1);
+  for (let y = 0; y < p; y++) { const v = (y * y) % p; sqCount[v]++; if (sqrt[v] < 0) sqrt[v] = y; }
+  let count = 1; const cands = [];
+  for (let x = 0; x < p; x++) {
+    const v = ((x * x) % p * x + 7) % p;
+    count += sqCount[v];
+    if (sqCount[v] && (p <= 17 || cands.length < 30)) {
+      const y = sqrt[v]; cands.push({ x, y });
+      if (p <= 17 && y !== 0) cands.push({ x, y: p - y });
+    }
+  }
+  return { p, count, cands };
+}
+function orbit(G, p) {
+  const xs = [-1], ys = [-1]; let R = G;
+  while (R !== O) { xs.push(R.x); ys.push(R.y); R = pointAdd(R, G, p); }
+  return { xs: Int32Array.from(xs), ys: Int32Array.from(ys), n: xs.length };
+}
+
+function compute() {
+  const p = S.p, G = F.cands[S.gi], orb = orbit(G, p), n = orb.n;
+  if (S.K == null || S.K > n - 1) S.K = n - 1;
+  const K = Math.max(1, Math.min(S.K, n - 1));
+  ensureSha(n - 1);
+  // full tables over k = 1 … n−1 (avalanche needs neighbours outside 1 … K)
+  const ex = orb.xs, ey = orb.ys;
+  const hx = new Int32Array(n), hy = new Int32Array(n);
+  for (let k = 1; k < n; k++) {
+    hx[k] = red64(shaWords[4 * k], shaWords[4 * k + 1], p);
+    hy[k] = red64(shaWords[4 * k + 2], shaWords[4 * k + 3], p);
+  }
+  const ce = S.coord === 'x' ? ex : ey, cs = S.coord === 'x' ? hx : hy;
+  const B = bitLen(p - 1), Bin = bitLen(n - 1);
+
+  // Test B: value counts
+  const cntE = new Uint32Array(p), cntS = new Uint32Array(p);
+  for (let k = 1; k <= K; k++) { cntE[ce[k]]++; cntS[cs[k]]++; }
+  const coc = cnt => { const c = [0, 0, 0, 0, 0]; for (let v = 0; v < p; v++) c[Math.min(4, cnt[v])]++; return c; };
+  const lamP = K / p, pois = [0, 1, 2, 3].map(j => p * Math.exp(-lamP) * Math.pow(lamP, j) / [1, 1, 2, 6][j]);
+  pois.push(p - pois.reduce((a, b) => a + b, 0));
+  const chi = cnt => { let s = 0; for (let v = 0; v < p; v++) { const d = cnt[v] - lamP; s += d * d / lamP; } return s / (p - 1); };
+  const nzSet = cnt => { const s = new Set(); for (let v = 0; v < p; v++) if (cnt[v]) s.add(cnt[v]); return [...s].sort((a, b) => a - b); };
+
+  // Test C: bits
+  const onesE = new Float64Array(B), onesS = new Float64Array(B), expB = new Float64Array(B);
+  for (let k = 1; k <= K; k++) for (let j = 0; j < B; j++) { onesE[j] += (ce[k] >> j) & 1; onesS[j] += (cs[k] >> j) & 1; }
+  for (let v = 0; v < p; v++) for (let j = 0; j < B; j++) expB[j] += (v >> j) & 1;
+  for (let j = 0; j < B; j++) { onesE[j] /= K; onesS[j] /= K; expB[j] /= p; }
+
+  // Test D: correlations and structure
+  const ks = new Float64Array(K), aE = new Float64Array(K), aS = new Float64Array(K);
+  for (let k = 1; k <= K; k++) { ks[k - 1] = k; aE[k - 1] = ce[k]; aS[k - 1] = cs[k]; }
+  const lag = (c) => { const a = [], b = []; for (let k = 1; k < K; k++) { a.push(c[k]); b.push(c[k + 1]); } return pearson(a, b); };
+  const mir = (c) => { const a = [], b = []; for (let k = 1; k <= K; k++) { const m = n - k; if (m >= 1 && m <= K && m !== k) { a.push(c[k]); b.push(c[m]); } } return { r: pearson(a, b), pairs: a.length }; };
+  let mirrorHits = 0, mirrorPairs = 0;
+  for (let k = 1; k <= K; k++) { const m = n - k; if (m >= 1 && m <= K && m !== k) { mirrorPairs++; if (ex[k] === ex[m] && (ey[k] + ey[m]) % p === 0) mirrorHits++; } }
+  const distinctFullE = (() => { const s = new Set(); for (let k = 1; k <= K; k++) s.add(ex[k] * p + ey[k]); return s.size; })();
+  const distinctFullS = (() => { const s = new Set(); for (let k = 1; k <= K; k++) s.add(hx[k] * p + hy[k]); return s.size; })();
+  const distinct = cnt => { let d = 0; for (let v = 0; v < p; v++) if (cnt[v]) d++; return d; };
+  const rnd = mulberry32(12345); let homOk = 0; const homN = Math.min(3000, K * K);
+  for (let t = 0; t < homN; t++) {
+    const a = 1 + Math.floor(rnd() * K), b = 1 + Math.floor(rnd() * K), s = (a + b) % n;
+    const R = pointAdd({ x: ex[a], y: ey[a] }, { x: ex[b], y: ey[b] }, p);
+    if (s === 0 ? R === O : (R !== O && R.x === ex[s] && R.y === ey[s])) homOk++;
+  }
+  let nextOk = 0; for (let k = 1; k < K; k++) { const R = pointAdd({ x: ex[k], y: ey[k] }, G, p); if (R !== O && R.x === ex[k + 1] && R.y === ey[k + 1]) nextOk++; }
+  let jumpE = 0, jumpS = 0; for (let k = 1; k < K; k++) { jumpE += Math.abs(ce[k + 1] - ce[k]); jumpS += Math.abs(cs[k + 1] - cs[k]); }
+
+  // Test E: avalanche over k = 1 … K, flipping each input bit (neighbour must stay in 1 … n−1)
+  const mE = Array.from({ length: Bin }, () => new Float64Array(B)), mS = Array.from({ length: Bin }, () => new Float64Array(B));
+  const pairs = new Float64Array(Bin); let flE = 0, flS = 0, tot = 0;
+  for (let k = 1; k <= K; k++) for (let i = 0; i < Bin; i++) {
+    const k2 = k ^ (1 << i); if (k2 < 1 || k2 > n - 1) continue;
+    pairs[i]++; tot++;
+    const de = ce[k] ^ ce[k2], ds = cs[k] ^ cs[k2];
+    for (let j = 0; j < B; j++) { const fe = (de >> j) & 1, fs = (ds >> j) & 1; mE[i][j] += fe; mS[i][j] += fs; flE += fe; flS += fs; }
+  }
+  for (let i = 0; i < Bin; i++) for (let j = 0; j < B; j++) { if (pairs[i]) { mE[i][j] /= pairs[i]; mS[i][j] /= pairs[i]; } else { mE[i][j] = NaN; mS[i][j] = NaN; } }
+  let expAv = 0; for (let j = 0; j < B; j++) expAv += 2 * expB[j] * (1 - expB[j]); expAv /= B;
+
+  D = {
+    p, G, n, K, B, Bin, ex, ey, hx, hy, ce, cs, cntE, cntS,
+    cocE: coc(cntE), cocS: coc(cntS), pois, chiE: chi(cntE), chiS: chi(cntS), nzE: nzSet(cntE), nzS: nzSet(cntS),
+    onesE, onesS, expB,
+    rE: pearson(ks, aE), rS: pearson(ks, aS), rhoE: pearson(ranks(ks), ranks(aE)), rhoS: pearson(ranks(ks), ranks(aS)),
+    lagE: lag(ce), lagS: lag(cs), mirE: mir(ce), mirS: mir(cs), mirrorHits, mirrorPairs,
+    distinctFullE, distinctFullS, distE: distinct(cntE), distS: distinct(cntS),
+    homOk, homN, nextOk, jumpE: jumpE / (K - 1), jumpS: jumpS / (K - 1),
+    mE, mS, pairs, avE: tot ? flE / (tot * B) : NaN, avS: tot ? flS / (tot * B) : NaN, expAv, tot
+  };
+}
+
+/* ================= drawing helpers ================= */
+function tok() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  return { ink: g('--ink'), ink2: g('--ink-2'), ink3: g('--ink-3'), hair: g('--hair'), sheet: g('--sheet'), hot: g('--hot'),
+    ec: g('--ec'), sha: g('--sha'), lo: g('--seq-lo'), hi: g('--seq-hi'), heat: g('--heat'), mono: g('--f-mono') };
+}
+const hex2rgb = h => { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+function niceTicks(lo, hi, count = 5) {
+  const span = hi - lo; if (span <= 0) return [lo];
+  const raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+const compact = v => Math.abs(v) >= 10000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'K' : String(+v.toFixed(3));
+
+function prepCanvas(wrap, h) {
+  const w = Math.max(200, wrap.clientWidth), dpr = window.devicePixelRatio || 1;
+  const [base, over] = wrap.querySelectorAll('canvas');
+  for (const c of [base, over]) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); c.style.width = w + 'px'; c.style.height = h + 'px'; c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0); }
+  wrap.style.height = h + 'px';
+  return { base: base.getContext('2d'), over: over.getContext('2d'), overEl: over, w, h };
+}
+function canvasFrame(ctx, w, h, m, xd, yd, T, xLabel, yLabel) {
+  const X = v => m.l + (v - xd[0]) / (xd[1] - xd[0]) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - yd[0]) / (yd[1] - yd[0]) * (h - m.t - m.b);
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineWidth = 1; ctx.font = `10px ${T.mono}`;
+  ctx.strokeStyle = T.hair; ctx.fillStyle = T.ink3;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const t of niceTicks(yd[0], yd[1], 4)) { const y = Math.round(Y(t)) + .5; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(w - m.r, y); ctx.stroke(); ctx.fillText(compact(t), m.l - 6, y); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const t of niceTicks(xd[0], xd[1], Math.max(3, Math.floor((w - m.l - m.r) / 90)))) { const x = Math.round(X(t)) + .5; ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, h - m.b); ctx.stroke(); ctx.fillText(compact(t), x, h - m.b + 6); }
+  ctx.fillStyle = T.ink2; ctx.textAlign = 'right'; ctx.fillText(xLabel, w - m.r, h - m.b + 20);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(yLabel, 2, 0);
+  return { X, Y };
+}
+
+/* tooltip */
+const tip = $('tip');
+function showTip(ev, strong, lines) {
+  tip.textContent = '';
+  const s = document.createElement('strong'); s.textContent = strong; tip.appendChild(s);
+  for (const l of lines) { const d = document.createElement('div'); d.textContent = l; tip.appendChild(d); }
+  tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = Math.max(4, x) + 'px'; tip.style.top = Math.max(4, y) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* scatter with nearest-point hover */
+function scatter(wrap, cfg) {
+  const T = tok(), { base, over, overEl, w, h } = prepCanvas(wrap, cfg.h);
+  const m = { l: 46, r: 12, t: 18, b: 36 };
+  const { X, Y } = canvasFrame(base, w, h, m, cfg.xd, cfg.yd, T, cfg.xLabel, cfg.yLabel);
+  if (cfg.mirror != null) {
+    base.save(); base.setLineDash([3, 4]); base.strokeStyle = T.ink3; base.beginPath(); const y = Math.round(Y(cfg.mirror)) + .5;
+    base.moveTo(m.l, y); base.lineTo(w - m.r, y); base.stroke(); base.restore();
+    base.fillStyle = T.ink3; base.textAlign = 'left'; base.textBaseline = 'bottom'; base.fillText('mirror y ↔ p − y', m.l + 4, y - 3);
+  }
+  const N = cfg.count, px = new Float32Array(N), py = new Float32Array(N);
+  const r = N > 20000 ? 1 : N > 3000 ? 1.6 : N > 400 ? 2.6 : 4;
+  const lo = hex2rgb(T.lo), hi = hex2rgb(T.hi);
+  base.globalAlpha = N > 20000 ? 0.55 : 0.9;
+  for (let i = 0; i < N; i++) {
+    px[i] = X(cfg.X(i)); py[i] = Y(cfg.Y(i));
+    base.fillStyle = cfg.seq ? `rgb(${mix(lo, hi, N > 1 ? i / (N - 1) : 1).join(',')})` : T[cfg.color];
+    base.beginPath(); base.arc(px[i], py[i], r, 0, 6.2832); base.fill();
+  }
+  base.globalAlpha = 1;
+  let raf = 0;
+  overEl.onpointermove = ev => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const rect = overEl.getBoundingClientRect(), mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+      let best = -1, bd = 24 * 24;
+      for (let i = 0; i < N; i++) { const dx = px[i] - mx, dy = py[i] - my, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+      over.clearRect(0, 0, w, h);
+      if (best < 0) { hideTip(); return; }
+      const ring = (i, col) => { over.beginPath(); over.arc(px[i], py[i], Math.max(6, r + 4), 0, 6.2832); over.lineWidth = 2.5; over.strokeStyle = col; over.stroke(); };
+      const partner = cfg.partner ? cfg.partner(best) : -1;
+      if (partner >= 0) {
+        over.save(); over.setLineDash([3, 3]); over.strokeStyle = T.hot; over.lineWidth = 1.5;
+        over.beginPath(); over.moveTo(px[best], py[best]); over.lineTo(px[partner], py[partner]); over.stroke(); over.restore();
+        ring(partner, T.hot);
+      }
+      ring(best, T.ink);
+      const t = cfg.tip(best, partner); showTip(ev, t[0], t.slice(1));
+    });
+  };
+  overEl.onpointerleave = () => { over.clearRect(0, 0, w, h); hideTip(); };
+}
+
+/* svg helpers */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); if (parent) parent.appendChild(e); return e; }
+function svgBox(wrap, h) { wrap.textContent = ''; const w = Math.max(220, wrap.clientWidth); const s = el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, role: 'img' }, wrap); return { s, w, h }; }
+function svgFrameY(s, w, h, m, yd, fmtTick) {
+  const Y = v => h - m.b - (v - yd[0]) / (yd[1] - yd[0]) * (h - m.t - m.b);
+  for (const t of niceTicks(yd[0], yd[1], 4)) {
+    el('line', { x1: m.l, x2: w - m.r, y1: Y(t), y2: Y(t), class: 'g-hair' }, s);
+    const tx = el('text', { x: m.l - 6, y: Y(t) + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); tx.textContent = fmtTick ? fmtTick(t) : compact(t);
+  }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  return Y;
+}
+
+/* ================= renderers ================= */
+function drawA() {
+  const { p, n, K, ex, ey, ce, cs } = D, c = S.coord;
+  const ow = $('cvOrbit').clientWidth;
+  scatter($('cvOrbit'), {
+    h: Math.min(560, Math.max(260, ow)), count: K, X: i => ex[i + 1], Y: i => ey[i + 1], xd: [0, p - 1], yd: [0, p - 1], seq: true,
+    xLabel: 'x →', yLabel: 'y', mirror: (p) / 2,
+    partner: i => { const m = n - (i + 1); return m >= 1 && m <= K && m !== i + 1 ? m - 1 : -1; },
+    tip: (i, j) => [`k = ${i + 1}  →  (${ex[i + 1]}, ${ey[i + 1]})`, j >= 0 ? `mirror: k = ${j + 1} → (${ex[j + 1]}, ${ey[j + 1]})` : 'mirror partner outside 1 … K', `same x, y-values add to ${p}`]
+  });
+  const hw = $('cvKE').clientWidth, hh = Math.max(190, Math.min(260, hw * 0.42));
+  const cname = c === 'x' ? 'x(kG)' : 'y(kG)', sname = c === 'x' ? 'x̃ = SHA-256(k) mod p' : 'ỹ = SHA-256(k) mod p';
+  scatter($('cvKE'), {
+    h: hh, count: K, X: i => i + 1, Y: i => ce[i + 1], xd: [1, Math.max(2, K)], yd: [0, p - 1], color: 'ec', xLabel: 'k →', yLabel: cname,
+    partner: i => { const m = n - (i + 1); return m >= 1 && m <= K && m !== i + 1 ? m - 1 : -1; },
+    tip: (i, j) => [`k = ${i + 1}: ${c} = ${ce[i + 1]}`, j >= 0 ? `k = ${j + 1} (= n − k): ${c} = ${ce[j + 1]}` : '']
+  });
+  scatter($('cvKS'), {
+    h: hh, count: K, X: i => i + 1, Y: i => cs[i + 1], xd: [1, Math.max(2, K)], yd: [0, p - 1], color: 'sha', xLabel: 'k →', yLabel: sname,
+    tip: i => [`k = ${i + 1}: ${c === 'x' ? 'x̃' : 'ỹ'} = ${cs[i + 1]}`]
+  });
+  $('hA2').textContent = `Input k → output ${c}-coordinate`;
+}
+
+function histogram(wrap, cnt, cls, yMax, label) {
+  const { p, K } = D;
+  const perValue = p <= 211, bins = perValue ? p : 64, bw = Math.ceil(p / bins);
+  const vals = new Float64Array(bins);
+  for (let v = 0; v < p; v++) vals[Math.floor(v / bw)] += cnt[v];
+  const { s, w, h } = svgBox(wrap, 190);
+  const m = { l: 40, r: 10, t: 10, b: 30 };
+  const Y = svgFrameY(s, w, h, m, [0, yMax]);
+  const slot = (w - m.l - m.r) / bins, bar = Math.max(0.8, Math.min(24, slot - (slot > 4 ? 2 : 0.4)));
+  for (let i = 0; i < bins; i++) {
+    if (!vals[i]) continue;
+    el('rect', { x: m.l + i * slot + (slot - bar) / 2, y: Y(vals[i]), width: bar, height: Y(0) - Y(vals[i]), class: cls }, s);
+  }
+  const E = K / p * bw;
+  el('line', { x1: m.l, x2: w - m.r, y1: Y(E), y2: Y(E), class: 'b-exp' }, s);
+  for (const t of niceTicks(0, p - 1, Math.max(3, Math.floor((w - m.l) / 80)))) {
+    const tx = el('text', { x: m.l + (Math.floor(t / bw) + 0.5) * slot, y: h - m.b + 15, 'text-anchor': 'middle', class: 'g-t' }, s); tx.textContent = compact(t);
+  }
+  const xl = el('text', { x: w - m.r, y: h - 3, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = label + (perValue ? ' value →' : ` (bins of ${bw}) →`);
+  const hit = el('rect', { x: m.l, y: m.t, width: w - m.l - m.r, height: h - m.t - m.b, fill: 'transparent' }, s);
+  hit.addEventListener('pointermove', ev => {
+    const r = s.getBoundingClientRect(), i = Math.min(bins - 1, Math.max(0, Math.floor((ev.clientX - r.left - m.l) / slot)));
+    const a = i * bw, b = Math.min(p - 1, a + bw - 1);
+    showTip(ev, `${vals[i]} time${vals[i] === 1 ? '' : 's'}`, [perValue ? `${label} = ${a}` : `${label} in ${a} … ${b}`, `uniform expectation ${E.toFixed(2)}`]);
+  });
+  hit.addEventListener('pointerleave', hideTip);
+}
+
+function drawB() {
+  const { cntE, cntS, p, K, cocE, cocS, pois, chiE, chiS, nzE, nzS } = D, c = S.coord;
+  const bw = p <= 211 ? 1 : Math.ceil(p / 64);
+  let yMax = 0; for (const cnt of [cntE, cntS]) { const v = new Float64Array(Math.ceil(p / bw)); for (let i = 0; i < p; i++) v[Math.floor(i / bw)] += cnt[i]; yMax = Math.max(yMax, ...v); }
+  yMax = Math.max(yMax, K / p * bw * 1.2);
+  histogram($('svB1'), cntE, 'b-ec', yMax, c);
+  histogram($('svB2'), cntS, 'b-sha', yMax, c === 'x' ? 'x̃' : 'ỹ');
+  $('hB1').textContent = `Toy curve · how often each ${c}-value occurs`;
+  $('hB2').textContent = `SHA-256 baseline · same for ${c === 'x' ? 'x̃' : 'ỹ'}`;
+  const tb = $('tB'); tb.textContent = '';
+  const row = (name, dot, arr, chiv, dec) => {
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td'); const d = document.createElement('span'); d.className = 'dot ' + dot; td0.append(d, name); tr.appendChild(td0);
+    arr.forEach(v => { const td = document.createElement('td'); td.className = 'num'; td.textContent = dec ? v.toFixed(1) : int(v); tr.appendChild(td); });
+    const tc = document.createElement('td'); tc.className = 'num'; tc.textContent = chiv; tr.appendChild(tc);
+    tb.appendChild(tr);
+  };
+  row('Toy curve', 'ec', cocE, chiE.toFixed(3));
+  row('SHA-256 baseline', 'sha', cocS, chiS.toFixed(3));
+  row('Random (Poisson) expectation', 'exp', pois, '≈ 1.000', true);
+
+  const f = [];
+  const full = K === D.n - 1;
+  const fmtSet = a => a.length === 1 ? `exactly ${a[0]}` : a.slice(0, -1).join(', ') + ' or ' + a[a.length - 1];
+  const list = a => a.length === 1 ? String(a[0]) : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  f.push(`Toy curve: every ${c}-value that occurs at all occurs <b>${fmtSet(nzE)}</b> time${nzE.length === 1 && nzE[0] === 1 ? '' : 's'}. SHA-256: the counts are ${list(nzS)}, close to the Poisson row, as a random function would give.`);
+  if (c === 'x') f.push(`The reason is the mirror: kG and (n − k)G = −kG share their x-coordinate. ${full ? `With all ${int(D.n - 1)} keys, exactly half as many x-values as keys appear, and about half of [0, p) never appears, because x³ + 7 must be a square mod p.` : 'Lower K below n − 1 and some partners drop out of the range, so single counts appear.'}`);
+  else f.push(p % 3 === 1
+    ? `Why 3: since p ≡ 1 (mod 3) there is a cube root of unity β ≠ 1 mod p, so (x, y), (βx, y) and (β²x, y) are all on the curve. (The only exception would be a y with y² = 7, which belongs to x = 0 alone.) secp256k1 has the same symmetry; it is used to speed up scalar multiplication.`
+    : `Since p ≡ 2 (mod 3), x ↦ x³ is a bijection mod p, so each y-value belongs to at most one point.`);
+  f.push(`χ² against a uniform distribution gives ${chiE.toFixed(2)} for the curve and ${chiS.toFixed(2)} for SHA-256 (about 1 means "consistent with uniform"). The χ² test does not see the structure the count table shows.`);
+  $('fB').innerHTML = f.map(s => `<li>${s}</li>`).join('');
+}
+
+function drawC() {
+  const { B, onesE, onesS, expB, p } = D, c = S.coord;
+  const { s, w, h } = svgBox($('svC'), 220);
+  const m = { l: 44, r: 10, t: 12, b: 34 };
+  const Y = svgFrameY(s, w, h, m, [0, 1], t => Math.round(t * 100) + '%');
+  el('line', { x1: m.l, x2: w - m.r, y1: Y(.5), y2: Y(.5), class: 'g-ref' }, s);
+  const slot = (w - m.l - m.r) / B, bar = Math.min(24, (slot - 8) / 2);
+  for (let gi = 0; gi < B; gi++) {
+    const j = B - 1 - gi, x0 = m.l + gi * slot + slot / 2;
+    el('rect', { x: x0 - bar - 1, y: Y(onesE[j]), width: bar, height: Y(0) - Y(onesE[j]), class: 'b-ec' }, s);
+    el('rect', { x: x0 + 1, y: Y(onesS[j]), width: bar, height: Y(0) - Y(onesS[j]), class: 'b-sha' }, s);
+    el('line', { x1: x0 - bar - 4, x2: x0 + bar + 4, y1: Y(expB[j]), y2: Y(expB[j]), class: 'b-exp' }, s);
+    const t = el('text', { x: x0, y: h - m.b + 15, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = 'b' + j;
+    const hit = el('rect', { x: m.l + gi * slot, y: m.t, width: slot, height: h - m.t - m.b, class: 'b-hit', tabindex: 0 }, s);
+    const show = ev => showTip(ev, `bit ${j}${j === B - 1 ? ' (top bit)' : j === 0 ? ' (lowest bit)' : ''}`, [`toy curve ${pct(onesE[j])}`, `SHA-256 ${pct(onesS[j])}`, `uniform on [0, ${p}) ${pct(expB[j])}`]);
+    hit.addEventListener('pointermove', show); hit.addEventListener('pointerleave', hideTip);
+    hit.addEventListener('focus', () => { const r = hit.getBoundingClientRect(); show({ clientX: r.right, clientY: r.top }); }); hit.addEventListener('blur', hideTip);
+  }
+  const xl = el('text', { x: w - m.r, y: h - 3, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = `bits of ${c}, top bit on the left`;
+  $('hC1').textContent = `Share of outputs with bit = 1 · ${B}-bit ${c}-coordinate`;
+  const tb = $('tC'); tb.textContent = '';
+  for (let j = B - 1; j >= 0; j--) { const tr = document.createElement('tr'); [`b${j}`, pct(onesE[j]), pct(onesS[j]), pct(expB[j])].forEach((v, i) => { const td = document.createElement('td'); if (i) td.className = 'num'; td.textContent = v; tr.appendChild(td); }); tb.appendChild(tr); }
+  let dE = 0, dS = 0, dTop = 0;
+  for (let j = 0; j < B; j++) { dE = Math.max(dE, Math.abs(onesE[j] - expB[j])); dS = Math.max(dS, Math.abs(onesS[j] - expB[j])); }
+  for (let j = 0; j < B; j++) dTop = Math.max(dTop, Math.abs(expB[j] - .5));
+  const top = 2 ** (B - 1);
+  $('fC').innerHTML = [
+    `Largest gap from the "uniform on [0, p)" ticks: <b>${pct(dE)}</b> for the curve, <b>${pct(dS)}</b> for SHA-256.`,
+    `The top bit is 1 only for values ≥ ${int(top)}. A uniform value below p = ${int(p)} has it with probability (p − ${int(top)}) / p = <b>${pct(expB[B - 1])}</b>, not 50%. Both functions show this, so it comes from the output range, not from the curve.`,
+    `For secp256k1, p = 2²⁵⁶ − 2³² − 977 is so close to 2²⁵⁶ that the same bias is about 2⁻²²⁴.`
+  ].map(s => `<li>${s}</li>`).join('');
+}
+
+function drawD() {
+  const d = D, c = S.coord, p = d.p, tb = $('tD'); tb.textContent = '';
+  const rows = [
+    ['Pearson r(k, ' + c + ')', f3(d.rE), f3(d.rS), 'Linear trend between key and output. Near 0 for both.'],
+    ['Spearman ρ(k, ' + c + ')', f3(d.rhoE), f3(d.rhoS), 'Any monotone trend. Near 0 for both.'],
+    ['Lag-1 r(' + c + '(k), ' + c + '(k+1))', f3(d.lagE), f3(d.lagS), 'Do neighbouring keys give similar outputs? Near 0 for both.'],
+    ['Mean |' + c + '(k+1) − ' + c + '(k)|', d.jumpE.toFixed(1), d.jumpS.toFixed(1), `Size of the jump between neighbours. Independent uniform values give about p/3 = ${(p / 3).toFixed(1)}.`],
+    ['Mirror r(' + c + '(k), ' + c + '(n−k))', d.mirE.pairs ? f3(d.mirE.r) : '—', d.mirS.pairs ? f3(d.mirS.r) : '—', c === 'x' ? 'x(kG) = x((n−k)G) for every k: a perfect hidden correlation that r(k, x) misses.' : 'y((n−k)G) = p − y(kG): a perfect negative correlation.'],
+    ['Distinct outputs (x, y)', `${int(d.distinctFullE)} / ${int(d.K)}`, `${int(d.distinctFullS)} / ${int(d.K)}`, 'Different keys always give different points (no collisions). A random function into p² pairs gives a few by chance.'],
+    ['Distinct ' + c + '-values', int(d.distE), int(d.distS), `Out of p = ${int(p)} possible values.`],
+    ['f(k+1) computable from f(k)', pct(d.K > 1 ? d.nextOk / (d.K - 1) : NaN), '—', 'Curve: (k+1)G = kG + G, no secret needed. SHA-256: no known rule.'],
+    ['f(a+b) computable from f(a), f(b)', pct(d.homOk / d.homN), '—', `Checked on ${int(d.homN)} random pairs: (a+b)G = aG + bG. A hash must not allow this.`]
+  ];
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr'); if (i >= 4) tr.className = i === 4 || i >= 7 ? 'key' : '';
+    r.forEach((v, j) => { const td = document.createElement('td'); td.className = j === 3 ? 'wrap' : j ? 'num' : ''; td.textContent = v; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  $('fD').innerHTML = [
+    `Ordinary correlation coefficients see nothing: |r| ≤ ${Math.max(Math.abs(d.rE), Math.abs(d.lagE)).toFixed(3)} for the curve, similar to SHA-256.`,
+    `Yet the curve output is completely predictable from related outputs: the mirror correlation is ${f3(d.mirE.r)} and the group law holds in ${pct(d.homOk / d.homN, 0)} of checks. This structure is what makes public-key cryptography work, and exactly what a hash function must not have.`,
+    `${pct(d.mirrorPairs ? d.mirrorHits / d.mirrorPairs : NaN, 0)} of the ${int(d.mirrorPairs)} mirror pairs (k, n − k) satisfy (n − k)G = −kG = (x, p − y). Hover a point in Test A to see its partner.`
+  ].map(s => `<li>${s}</li>`).join('');
+}
+
+function heatmap(wrap, M, label) {
+  const { B, Bin } = D, T = tok(), heat = hex2rgb(T.heat);
+  const w0 = Math.max(220, wrap.clientWidth), m = { l: 46, r: 8, t: 26, b: 30 };
+  const cellSz = Math.max(8, Math.min(26, (w0 - m.l - m.r) / B));
+  const w = m.l + cellSz * B + m.r, h = m.t + cellSz * Bin + m.b;
+  wrap.textContent = '';
+  const s = el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, role: 'img' }, wrap);
+  const ttl = el('text', { x: m.l, y: 12, class: 'g-tl' }, s); ttl.textContent = 'output bit →  (top bit left)';
+  const yl = el('text', { x: 2, y: 12, class: 'g-tl' }, s); yl.textContent = 'flip';
+  for (let ri = 0; ri < Bin; ri++) {
+    const i = Bin - 1 - ri;
+    const ty = el('text', { x: m.l - 6, y: m.t + ri * cellSz + cellSz / 2 + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); ty.textContent = 'k b' + i;
+    for (let ci = 0; ci < B; ci++) {
+      const j = B - 1 - ci, v = M[i][j];
+      const a = Number.isFinite(v) ? Math.min(1, Math.abs(v - 0.5) / 0.5) : 0;
+      const r = el('rect', { x: m.l + ci * cellSz, y: m.t + ri * cellSz, width: cellSz, height: cellSz, class: 'h-cell',
+        fill: Number.isFinite(v) ? `rgba(${heat.join(',')},${(0.04 + 0.96 * a).toFixed(3)})` : 'transparent' }, s);
+      r.addEventListener('pointermove', ev => showTip(ev, Number.isFinite(v) ? pct(v) : 'no pairs', [`${label}: flip input bit ${i} of k`, `→ output bit ${j} flips this often`, 'ideal: 50%']));
+      r.addEventListener('pointerleave', hideTip);
+    }
+  }
+  for (let ci = 0; ci < B; ci++) {
+    if (B > 12 && ci % 2) continue;
+    const t = el('text', { x: m.l + ci * cellSz + cellSz / 2, y: h - m.b + 14, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = B - 1 - ci;
+  }
+}
+
+function drawE() {
+  const d = D;
+  heatmap($('svE1'), d.mE, 'toy curve');
+  heatmap($('svE2'), d.mS, 'SHA-256');
+  $('avE').textContent = `average ${pct(d.avE)}`;
+  $('avS').textContent = `average ${pct(d.avS)}`;
+  const tb = $('tE'); tb.textContent = '';
+  for (let i = d.Bin - 1; i >= 0; i--) {
+    let se = 0, ss = 0; for (let j = 0; j < d.B; j++) { se += d.mE[i][j]; ss += d.mS[i][j]; }
+    const tr = document.createElement('tr');
+    [`k bit ${i}`, int(d.pairs[i]), d.pairs[i] ? pct(se / d.B) : '—', d.pairs[i] ? pct(ss / d.B) : '—'].forEach((v, x) => { const td = document.createElement('td'); if (x) td.className = 'num'; td.textContent = v; tr.appendChild(td); });
+    tb.appendChild(tr);
+  }
+  let worstE = 0, worstS = 0;
+  for (let i = 0; i < d.Bin; i++) for (let j = 0; j < d.B - 1; j++) { if (d.pairs[i] < Math.min(200, d.K / 2)) continue; if (Number.isFinite(d.mE[i][j])) worstE = Math.max(worstE, Math.abs(d.mE[i][j] - .5)); if (Number.isFinite(d.mS[i][j])) worstS = Math.max(worstS, Math.abs(d.mS[i][j] - .5)); }
+  $('fE').innerHTML = [
+    `Average share of output bits flipped: <b>${pct(d.avE)}</b> for the curve, <b>${pct(d.avS)}</b> for SHA-256. A uniform value in [0, p) gives ${pct(d.expAv)} on average, a little under 50% because of the short top bit (Test C).`,
+    `Below the top output bit (and ignoring input bits with few valid flips), the largest cell deviation from 50% is ${pct(worstE)} for the curve and ${pct(worstS)} for SHA-256${d.K < 400 ? '; with this few keys, random noise is large' : ''}. On this test the curve looks avalanche-like.`,
+    `That appearance is misleading. Changing k by 1 changes Q by exactly G, so the "avalanche" is a known, reversible step. Bit-level tests cannot see algebraic structure.`
+  ].map(s => `<li>${s}</li>`).join('');
+}
+
+function drawScore() {
+  const d = D, c = S.coord;
+  const pill = (cls, t) => `<span class="pill ${cls}">${t}</span>`;
+  const R = [
+    ['Easy to compute', 'Part 1', `≈ log₂ k doublings (n = ${int(d.n)})`, '64 rounds per block', pill('req', 'Required'), pill('req', 'Required')],
+    ['Hard to invert', 'Part 1', `No: try all ${int(d.n - 1)} keys`, `No: try all ${int(d.n - 1)} inputs`, pill('req', 'Required: the defining property'), pill('req', 'Required: preimage resistance')],
+    ['Distinct outputs for distinct inputs', 'D', `${int(d.distinctFullE)} of ${int(d.K)} distinct`, `${int(d.distinctFullS)} of ${int(d.K)} distinct`, pill('ok', 'Useful: k ↔ Q one-to-one'), pill('no', 'Collisions exist; must be hard to find')],
+    ['Uniform value frequencies', 'B', `${c}-values hit ${d.nzE.join(' or ')} times only`, `Poisson-like, χ²/df ${d.chiS.toFixed(2)}`, pill('no', 'Not required'), pill('req', 'Required')],
+    ['Balanced output bits', 'C', 'Matches the range [0, p)', 'Matches the range [0, p)', pill('no', 'Not required'), pill('req', 'Required (50% each)')],
+    ['No input–output correlation', 'D', `r = ${f3(d.rE)}`, `r = ${f3(d.rS)}`, pill('no', 'Says nothing about hardness'), pill('ok', 'Expected, but weak evidence')],
+    ['No algebraic relations', 'D', `Group law holds ${pct(d.homOk / d.homN, 0)}; mirror r = ${f3(d.mirE.r)}`, 'None found', pill('ok', 'Allowed: needed for ECDH, ECDSA'), pill('bad', 'Must not have')],
+    ['Avalanche effect', 'E', `${pct(d.avE)} average flip`, `${pct(d.avS)} average flip`, pill('no', 'Not required'), pill('req', 'Required')]
+  ];
+  $('tS').innerHTML = R.map(r => '<tr>' + r.map(v => `<td>${v}</td>`).join('') + '</tr>').join('');
+}
+
+function drawAFindings() {
+  const d = D, c = S.coord;
+  const f = [
+    `The cloud of points is symmetric about the line y = p/2: ${pct(d.mirrorPairs ? d.mirrorHits / d.mirrorPairs : NaN, 0)} of the mirror pairs (kG, (n − k)G) sit directly above each other.`,
+    `Neighbouring keys land far apart: the average jump |${c}(k+1) − ${c}(k)| is ${d.jumpE.toFixed(1)} (SHA-256: ${d.jumpS.toFixed(1)}, independent uniform values: about ${(d.p / 3).toFixed(1)}).`,
+    `In the k → ${c} plot, the left and right halves of the toy-curve panel are mirror images${c === 'x' ? '' : ' (flipped upside down)'}: ${c}(n − k) ${c === 'x' ? '= x(k)' : '= p − y(k)'}. The SHA-256 panel has no such symmetry.`
+  ];
+  $('fA').innerHTML = f.map(s => `<li>${s}</li>`).join('');
+  const tb = $('tA'); tb.textContent = '';
+  const lim = Math.min(d.K, 200);
+  for (let k = 1; k <= lim; k++) { const tr = document.createElement('tr'); [k, `(${d.ex[k]}, ${d.ey[k]})`, `(${d.hx[k]}, ${d.hy[k]})`].forEach((v, i) => { const td = document.createElement('td'); if (!i) td.className = 'num'; td.textContent = v; tr.appendChild(td); }); tb.appendChild(tr); }
+  document.querySelector('#testA details summary').setAttribute('aria-label', `table view, first ${lim} keys`);
+}
+
+function drawAll() {
+  drawA(); drawAFindings(); drawB(); drawC(); drawD(); drawE(); drawScore();
+}
+
+function fillHeader() {
+  const d = D;
+  $('s2P').textContent = int(d.p);
+  $('s2E').textContent = `${int(F.count)} (incl. O)${isPrime(F.count) ? ', prime' : ''}`;
+  $('s2G').textContent = fmt(d.G);
+  $('s2N').textContent = `n = ${int(d.n)}`;
+  $('s2K').textContent = `k = 1 … ${int(d.K)}`;
+  $('fnote').textContent = d.p === 17
+    ? `p = 17 is the assignment curve: 18 points, so base points have orders 1, 2, 3, 6, 9 or 18 and the samples are tiny. Choose a larger p for meaningful statistics.`
+    : `Primes were picked so that the curve has a prime number of points, like secp256k1. Then every point except O generates the whole group, and changing G only relabels which k gives which point.`;
+}
+function isPrime(v) { if (v < 2) return false; for (let i = 2; i * i <= v; i++) if (v % i === 0) return false; return true; }
+
+/* ================= controls ================= */
+function fillGSelect() {
+  const sel = $('sG'); sel.textContent = '';
+  F.cands.forEach((P, i) => {
+    const o = document.createElement('option'); o.value = i;
+    o.textContent = S.p <= 17 ? `${fmt(P)} · order ${orbit(P, S.p).n}` : fmt(P);
+    sel.appendChild(o);
+  });
+  S.gi = S.p === 17 ? Math.max(0, F.cands.findIndex(P => P.x === 1 && P.y === 5)) : Math.min(1, F.cands.length - 1);
+  sel.value = S.gi;
+}
+let busyT = 0;
+function run(resetK) {
+  const st = $('sStatus'); st.textContent = 'computing…'; $('part2').classList.add('busy');
+  clearTimeout(busyT);
+  busyT = setTimeout(() => {
+    const t0 = performance.now();
+    if (resetK) S.K = null;
+    compute();
+    const kr = $('sKR'), kn = $('sKN');
+    kr.max = kn.max = D.n - 1; kr.value = kn.value = D.K;
+    fillHeader(); drawAll();
+    $('part2').classList.remove('busy');
+    st.textContent = `${int(D.K)} keys · ${Math.round(performance.now() - t0)} ms`;
+  }, 20);
+}
+$('sP').addEventListener('change', e => { S.p = +e.target.value; F = setupField(S.p); fillGSelect(); run(true); });
+$('sG').addEventListener('change', e => { S.gi = +e.target.value; run(true); });
+let kT = 0;
+const setK = v => { v = Math.floor(+v); if (!Number.isFinite(v) || v < 2) return; S.K = v; clearTimeout(kT); kT = setTimeout(() => run(false), 120); };
+$('sKR').addEventListener('input', e => { $('sKN').value = e.target.value; setK(e.target.value); });
+$('sKN').addEventListener('change', e => setK(e.target.value));
+document.querySelectorAll('input[name=coord]').forEach(r => r.addEventListener('change', e => { S.coord = e.target.value; run(false); }));
+
+let rw = 0, lastW = 0;
+new ResizeObserver(() => { const w = $('testA').clientWidth; if (Math.abs(w - lastW) < 2) return; lastW = w; cancelAnimationFrame(rw); rw = requestAnimationFrame(() => D && drawAll()); }).observe(document.querySelector('.sheet'));
+
+function currentDark() { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; }
+function syncTheme() { if (D) drawAll(); }
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// first render, synchronously, so the page is complete at rest
+F = setupField(S.p); fillGSelect(); compute();
+$('sKR').max = $('sKN').max = D.n - 1; $('sKR').value = $('sKN').value = D.K;
+fillHeader(); drawAll(); $('sStatus').textContent = `${int(D.K)} keys`;
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll());
+})();
+</script>
+</body>
+</html>
