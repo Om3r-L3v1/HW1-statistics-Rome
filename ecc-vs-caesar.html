@@ -1,0 +1,3245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>ECC vs Caesar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Encrypt and decrypt a message with toy elliptic-curve ElGamal and with the Caesar cipher, compare them, break Caesar with letter statistics and break the toy ECC scheme through its restricted key space.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500;700&display=swap">
+</head>
+<body>
+<style>
+/* Layout: the same drafting-sheet system as HMWK 1 and HMWK 2. Title block, then five numbered sections
+   that follow the assignment: ECC scheme, Caesar, comparison, Caesar cryptanalysis, attack on the toy ECC scheme.
+   Light = whiteprint, dark = blueprint. Series: --s1..--s4 = the four Caesar attack methods (validated set);
+   --ec / --sha = toy ECC / Caesar (and brute force / BSGS in the scaling chart). */
+:root{
+  --paper:#eef2fa; --sheet:#fafcff; --ink:#0f2657; --ink-2:#3a4f82; --ink-3:#66789f;
+  --rule:#0f2657; --hair:rgba(15,38,87,.16); --grid-a:rgba(15,38,87,.045); --grid-b:rgba(15,38,87,.09);
+  --hot:#d2381c; --amber:#f0b000; --wash:rgba(240,176,0,.18); --on-ink:#fafcff; --ok:#1d7a4a;
+  --ec:#2450e0; --sha:#d47500; --plain:#66789f;
+  --s1:#2450e0; --s2:#e05a1c; --s3:#14946a; --s4:#b8329b;
+  --f-display:"Archivo","Archivo Narrow","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Martian Mono","JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+    --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+    --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --on-ink:#0d2856; --ok:#5fd39a;
+    --ec:#2b9bc6; --sha:#d07a10; --plain:#8296c4;
+    --s1:#4f8cf0; --s2:#e0672e; --s3:#21a777; --s4:#c45ab3;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+  --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+  --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --on-ink:#0d2856; --ok:#5fd39a;
+  --ec:#2b9bc6; --sha:#d07a10; --plain:#8296c4;
+  --s1:#4f8cf0; --s2:#e0672e; --s3:#21a777; --s4:#c45ab3;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; color:var(--ink); background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid-b) 1px,transparent 1px),linear-gradient(90deg,var(--grid-b) 1px,transparent 1px),
+    linear-gradient(var(--grid-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-a) 1px,transparent 1px);
+  background-size:80px 80px,80px 80px,16px 16px,16px 16px;
+  font-family:var(--f-body); font-size:16px; line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:28px 56px;
+}
+a{color:inherit;text-underline-offset:3px}
+code{font-family:var(--f-mono);font-size:.88em}
+.sheet{max-width:1240px;margin:0 auto;border:2px solid var(--rule);outline:1px solid var(--rule);outline-offset:4px}
+.label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.nc{text-transform:none}
+.mono{font-family:var(--f-mono)}
+
+.hero{padding:28px 28px 24px;display:grid;gap:16px;border-bottom:2px solid var(--rule)}
+.hero h1{margin:0;font-family:var(--f-display);font-stretch:70%;font-weight:850;text-transform:uppercase;
+  font-size:clamp(36px,6.6vw,84px);line-height:.92;letter-spacing:-.005em;text-wrap:balance}
+.hero h1 .a{color:var(--hot)}
+.hero .lede{margin:0;max-width:68ch;color:var(--ink-2);font-size:17px}
+.duel{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:0;border:1.5px solid var(--ink);max-width:980px}
+@media (max-width:700px){.duel{grid-template-columns:minmax(0,1fr)}.duel .vs{padding:6px 0}}
+.duel > div{padding:12px 14px;display:grid;gap:4px;min-width:0;background:var(--sheet)}
+.duel .vs{display:grid;place-items:center;padding:0 14px;font-family:var(--f-display);font-stretch:70%;font-weight:850;font-size:26px;color:var(--hot);background:var(--paper);border-inline:1.5px solid var(--ink)}
+@media (max-width:700px){.duel .vs{border-inline:0;border-block:1.5px solid var(--ink)}}
+.duel b{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:17px}
+.duel .ct{font-family:var(--f-mono);font-size:12.5px;overflow-wrap:anywhere;word-break:break-all;color:var(--ink-2)}
+
+.tb{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border-bottom:2px solid var(--rule);margin:0;background:var(--sheet)}
+.tb div{padding:10px 14px 12px;border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);min-width:0}
+.tb dt{margin:0 0 4px}
+.tb dd{margin:0;font-family:var(--f-mono);font-size:14px;font-weight:500;overflow-wrap:anywhere}
+.themebtn{all:unset;cursor:pointer;font-family:var(--f-mono);font-size:13px;font-weight:500;border-bottom:1.5px solid currentColor}
+.themebtn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+.block{border-bottom:2px solid var(--rule);background:var(--sheet);min-width:0}
+.block:last-child{border-bottom:0}
+.ph{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--hair)}
+.ph h2{margin:0;font-family:var(--f-display);font-stretch:80%;font-weight:800;text-transform:uppercase;font-size:22px;letter-spacing:.01em}
+.ph h2 .tag{font-family:var(--f-mono);font-stretch:100%;font-weight:500;font-size:11px;letter-spacing:.1em;color:var(--ink-3);margin-right:10px;vertical-align:3px}
+.ph .q{font-size:15px;color:var(--ink-2);margin:0;flex-basis:100%}
+.inner{padding:18px;display:grid;gap:18px;min-width:0}
+.prose{max-width:74ch;display:grid;gap:12px}
+.prose p{margin:0}
+.prose h3,.h3{margin:6px 0 0;font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:18px}
+.prose ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.callout{border:2px solid var(--ink);padding:12px 16px;background:var(--wash);max-width:84ch}
+.callout b{font-family:var(--f-display);font-stretch:85%;text-transform:uppercase;font-size:15px;letter-spacing:.02em}
+
+/* inputs */
+.controls{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:end}
+.field{display:grid;gap:6px;min-width:0}
+.field.grow{flex:1 1 280px}
+textarea,input[type=text],input[type=number],select{font-family:var(--f-mono);font-size:14px;padding:8px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;min-width:0;max-width:100%}
+input[type=text],textarea{width:100%}
+textarea{resize:vertical;min-height:70px;line-height:1.6}
+input[type=range]{accent-color:var(--hot)}
+textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font-family:var(--f-mono);font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:9px 12px;border:1.5px solid var(--ink);background:var(--sheet);color:var(--ink);cursor:pointer;border-radius:0;line-height:1}
+.btn:hover{background:var(--wash)}
+.btn.primary{background:var(--ink);color:var(--on-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.status{font-family:var(--f-mono);font-size:12px;margin:0;color:var(--ink-2)}
+.status.ok{color:var(--ok)} .status.bad{color:var(--hot)}
+.krow{display:flex;gap:10px;align-items:center}
+
+/* stations (same as HMWK 2) */
+.pipe{display:grid;gap:0;border:1.5px solid var(--ink)}
+.stn{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);border-bottom:1.5px solid var(--ink)}
+.stn:last-child{border-bottom:0}
+.stn .l{padding:12px 14px;border-right:1px solid var(--hair);display:grid;gap:6px;align-content:start;background:var(--paper)}
+.stn .n{font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+.stn .t{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:18px;line-height:1.1}
+.stn .who{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.stn .r{padding:12px 14px;display:grid;gap:10px;min-width:0}
+@media (max-width:760px){.stn{grid-template-columns:minmax(0,1fr)}.stn .l{border-right:0;border-bottom:1px solid var(--hair)}}
+.val{font-family:var(--f-mono);font-size:13px;line-height:1.65;overflow-wrap:anywhere;word-break:break-all;color:var(--ink)}
+.val .em{color:var(--hot);font-weight:700}
+.val .pre{color:var(--ink-3)}
+.big{font-family:var(--f-display);font-stretch:70%;font-weight:700;font-size:clamp(22px,3.6vw,38px);line-height:1.05;overflow-wrap:anywhere}
+.note{font-size:14px;color:var(--ink-2);margin:0;max-width:84ch}
+.check{font-family:var(--f-mono);font-size:12.5px;margin:0}
+.check.ok{color:var(--ok)} .check.bad{color:var(--hot)}
+
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--hair);padding:4px 6px;display:grid;gap:1px;font-family:var(--f-mono);font-size:11px;min-width:64px}
+.chip b{font-size:14px}
+.chip i{font-style:normal;color:var(--ink-3);font-size:10px;overflow-wrap:anywhere}
+
+.tablewrap{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:500;text-align:left;padding:8px 10px;border-bottom:1.5px solid var(--ink);vertical-align:bottom}
+td{padding:7px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+td.num,th.num{text-align:right}
+td.wrap{white-space:normal;font-family:var(--f-body);font-size:14px;color:var(--ink-2);min-width:180px}
+td.nw{white-space:nowrap}
+tr.best td{background:var(--wash);font-weight:700}
+td.win{color:var(--hot);font-weight:700}
+.ktable td:first-child{font-weight:700;white-space:nowrap}
+.ktable td{min-width:110px}
+.scroll{max-height:380px;overflow:auto}
+
+.wheel{display:grid;grid-template-columns:repeat(26,minmax(0,1fr));gap:2px;max-width:900px}
+@media (max-width:640px){.wheel{grid-template-columns:repeat(13,minmax(0,1fr))}}
+.wheel span{display:grid;justify-items:center;border:1px solid var(--hair);padding:3px 0;font-family:var(--f-mono);font-size:13px;line-height:1.3}
+.wheel span i{font-style:normal;color:var(--hot);font-weight:700}
+.wheel span.used{background:var(--wash)}
+
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 22px}
+.cols.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)}.cols.two{grid-template-columns:minmax(0,1fr)}}
+.chart{min-width:0;display:grid;gap:6px;align-content:start}
+.chart h3{margin:0;font-family:var(--f-mono);font-size:12px;font-weight:700;letter-spacing:.03em}
+.chart .sub{font-size:13.5px;color:var(--ink-2);margin:0}
+.svgw{width:100%;min-width:0}
+.svgw svg{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-family:var(--f-mono);font-size:11px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;display:inline-block}
+.sw.tick{width:14px;height:0;border-top:2px solid var(--ink)}
+.sw.line{width:18px;height:0;border-top:2px solid currentColor}
+.sw.dash{width:18px;height:0;border-top:2px dashed currentColor}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;border:1.5px solid var(--ink)}
+.stat{padding:10px 12px;border:.75px solid var(--ink);display:grid;gap:2px;min-width:0}
+.stat .v{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:28px;line-height:1.05;overflow-wrap:anywhere}
+.stat .s{font-size:13px;color:var(--ink-2)}
+.findings{margin:0;padding:0;list-style:none;display:grid;gap:8px;max-width:88ch}
+.findings li{padding-left:22px;position:relative}
+.findings li::before{content:"→";position:absolute;left:0;color:var(--hot);font-weight:700}
+.findings b{font-family:var(--f-mono);font-size:.9em}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px;max-width:86ch}
+.steps li{counter-increment:s;padding-left:40px;position:relative}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;display:grid;place-items:center;border:1.5px solid var(--ink);font-family:var(--f-mono);font-size:12px;font-weight:700}
+.steps b{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:15px}
+.log{font-family:var(--f-mono);font-size:12.5px;line-height:1.7;background:var(--paper);border:1.5px solid var(--ink);padding:10px 12px;min-height:90px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.log .ok{color:var(--ok);font-weight:700} .log .bad{color:var(--hot);font-weight:700} .log .dim{color:var(--ink-3)}
+.bar{height:10px;border:1px solid var(--ink);background:var(--paper);position:relative;max-width:520px}
+.bar span{position:absolute;left:0;top:0;bottom:0;background:var(--hot);width:0}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border:1.5px solid var(--ink);white-space:nowrap}
+.pill.k{background:var(--ink);color:var(--on-ink)}
+.pill.d{border-color:var(--hot);color:var(--hot)}
+.pill.i{border-style:dashed}
+details.more summary{cursor:pointer;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);list-style:none}
+details.more summary::before{content:"+ ";color:var(--hot);font-weight:700}
+details.more[open] summary::before{content:"− "}
+details.more > div{margin-top:10px;display:grid;gap:10px}
+
+.foot{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between;align-items:center;padding:16px 18px;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);background:var(--sheet)}
+.foot nav{display:flex;flex-wrap:wrap;gap:8px 18px}
+.foot nav a{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:18px;text-transform:uppercase;text-decoration:none;border-bottom:3px solid var(--hot);color:var(--ink)}
+
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--sheet);border:1.5px solid var(--ink);padding:7px 9px;font-family:var(--f-mono);font-size:11.5px;line-height:1.5;color:var(--ink-2);max-width:280px}
+#tip strong{display:block;color:var(--ink);font-size:13px}
+#tip .k{display:inline-block;width:12px;height:0;border-top:2px solid;margin-right:6px;vertical-align:3px}
+.g-hair{stroke:var(--hair);stroke-width:1}
+.g-axis{stroke:var(--ink-3);stroke-width:1}
+.g-t{fill:var(--ink-3);font-family:var(--f-mono);font-size:10px}
+.g-tl{fill:var(--ink-2);font-family:var(--f-mono);font-size:10.5px}
+.g-ref{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 4}
+.g-cross{stroke:var(--ink-2);stroke-width:1}
+.f-plain{fill:var(--plain)} .f-ec{fill:var(--ec)} .f-sha{fill:var(--sha)} .f-hot{fill:var(--hot)}
+.b-exp{stroke:var(--ink);stroke-width:2}
+.b-hit{fill:transparent}
+.b-hit:hover{fill:var(--wash)}
+.ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.c1{stroke:var(--s1);fill:var(--s1);color:var(--s1)} .c2{stroke:var(--s2);fill:var(--s2);color:var(--s2)}
+.c3{stroke:var(--s3);fill:var(--s3);color:var(--s3)} .c4{stroke:var(--s4);fill:var(--s4);color:var(--s4)}
+.cE{stroke:var(--ec);fill:var(--ec);color:var(--ec)} .cS{stroke:var(--sha);fill:var(--sha);color:var(--sha)}
+.ln.c1,.ln.c2,.ln.c3,.ln.c4,.ln.cE,.ln.cS{fill:none}
+.ln.dash{stroke-dasharray:6 5}
+.mk{stroke:var(--sheet);stroke-width:2}
+</style>
+
+<div class="sheet" id="top">
+  <header class="hero">
+    <div class="label">Homework (2) · Encryption, decryption and cryptanalysis</div>
+    <h1>Two ciphers, <span class="a">two ways</span> to break them</h1>
+    <p class="lede">The same short message is encrypted twice: with a toy elliptic-curve scheme built on the curve and point arithmetic of HMWK 1, and with the Caesar cipher. Then each is broken. Caesar falls to letter statistics; the toy ECC scheme falls to an exhaustive search of its deliberately small key space. Everything is computed live in your browser.</p>
+    <div class="duel" aria-label="The same message under both schemes">
+      <div><span class="label">Toy EC-ElGamal · ciphertext starts</span><b id="duelEcc">—</b><span class="ct" id="duelEccCt"></span></div>
+      <div class="vs">VS</div>
+      <div><span class="label">Caesar · ciphertext</span><b id="duelCaesar">—</b><span class="ct" id="duelCaesarCt"></span></div>
+    </div>
+  </header>
+
+  <dl class="tb">
+    <div><dt class="label">Scheme A</dt><dd>EC-ElGamal on y² = x³ + 7</dd></div>
+    <div><dt class="label">Scheme B</dt><dd>Caesar shift mod 26</dd></div>
+    <div><dt class="label">Message</dt><dd id="tbMsg"></dd></div>
+    <div><dt class="label">ECC key range</dt><dd id="tbRange"></dd></div>
+    <div><dt class="label">Caesar keys</dt><dd>26 shifts</dd></div>
+    <div><dt class="label">Print</dt><dd><button class="themebtn" id="themeBtn" type="button">Blueprint</button></dd></div>
+  </dl>
+
+  <!-- §1 ECC -->
+  <section class="block" aria-labelledby="h1x">
+    <div class="ph"><h2 id="h1x"><span class="tag">§1</span>Encrypt and decrypt with the toy ECC scheme</h2>
+      <p class="q">EC-ElGamal: the textbook way to encrypt with an elliptic curve, using only the point addition and scalar multiplication of HMWK 1.</p></div>
+    <div class="inner">
+      <div class="controls">
+        <div class="field">
+          <label class="label" for="curveSel">Curve and key range</label>
+          <select id="curveSel">
+            <option value="t17" selected>Toy curve mod 17 · G = (1, 5) · HMWK 1</option>
+            <option value="t97">Toy curve mod 97 · G = (1, 28)</option>
+            <option value="s16">secp256k1 · private key k ≤ 2^16</option>
+            <option value="s20">secp256k1 · private key k ≤ 2^20</option>
+            <option value="s24">secp256k1 · private key k ≤ 2^24</option>
+            <option value="s32">secp256k1 · private key k ≤ 2^32</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="kIn">Private key k</label>
+          <div class="krow"><input type="text" id="kIn" value="6" spellcheck="false" style="width:190px"><button class="btn" id="kRand" type="button">Random in range</button></div>
+        </div>
+        <div class="field grow">
+          <label class="label" for="msgIn">Message (letters and spaces)</label>
+          <input type="text" id="msgIn" value="MEET ME AT THE OLD PORT AT NOON" spellcheck="false" autocomplete="off">
+        </div>
+        <button class="btn primary" id="reEnc" type="button">Encrypt again (new r)</button>
+      </div>
+      <p class="status" id="eccStatus" aria-live="polite"></p>
+
+      <div class="pipe">
+        <div class="stn"><div class="l"><span class="n">01 · receiver</span><span class="t">Key generation</span><span class="who">once, by the receiver</span></div>
+          <div class="r"><div class="val" id="vKeys"></div><p class="note">The private key <i>k</i> stays with the receiver. The public key <i>Q = kG</i> is published so that anyone can encrypt to the receiver. Recovering <i>k</i> from <i>Q</i> is the elliptic-curve discrete logarithm problem, the one-way function of HMWK 1.</p></div></div>
+        <div class="stn"><div class="l"><span class="n">02 · sender</span><span class="t">Encode</span><span class="who">public rule, no key</span></div>
+          <div class="r"><p class="note" id="nEnc"></p><div class="chips" id="vEnc"></div></div></div>
+        <div class="stn"><div class="l"><span class="n">03 · sender</span><span class="t">Encrypt</span><span class="who">uses Q and a fresh random r</span></div>
+          <div class="r"><p class="note">For every block: pick a random <i>r</i>, send <b class="mono">C<sub>1</sub> = r·G</b> and <b class="mono">C<sub>2</sub> = M + r·Q</b>. The point <i>r·Q</i> is a one-time mask; <i>C<sub>1</sub></i> is the hint that lets the key owner rebuild it.</p>
+            <div class="tablewrap"><table><thead><tr><th>#</th><th>Symbol</th><th>Block value</th><th>Random r</th><th>C<sub>1</sub> = r·G</th><th>C<sub>2</sub> = M + r·Q</th></tr></thead><tbody id="vEncT"></tbody></table></div></div></div>
+        <div class="stn"><div class="l"><span class="n">04 · channel</span><span class="t">Ciphertext</span><span class="who">what an eavesdropper sees</span></div>
+          <div class="r"><div class="val" id="vCt"></div><p class="note" id="nCt"></p></div></div>
+        <div class="stn"><div class="l"><span class="n">05 · receiver</span><span class="t">Decrypt</span><span class="who">uses the private key k</span></div>
+          <div class="r"><p class="note">Rebuild the mask with <b class="mono">S = k·C<sub>1</sub> = k·r·G = r·Q</b>, subtract it, <b class="mono">M = C<sub>2</sub> − S</b>, and read the symbol back from the encoding table.</p>
+            <div class="tablewrap"><table><thead><tr><th>#</th><th>S = k·C<sub>1</sub></th><th>M = C<sub>2</sub> − S</th><th>Block value</th><th>Symbol</th></tr></thead><tbody id="vDecT"></tbody></table></div>
+            <div class="big" id="vDec"></div><p class="check" id="vDecChk"></p></div></div>
+      </div>
+
+      <div class="tablewrap">
+        <table class="ktable">
+          <thead><tr><th>Key or value</th><th>Who has it</th><th>Secret?</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td>Curve, field p, base point G</td><td class="wrap">Everyone</td><td class="wrap">No</td><td class="wrap">Public parameters. They define the group in which all computations happen.</td></tr>
+            <tr><td>Private key k</td><td class="wrap">Receiver only</td><td class="wrap">Yes, long-term</td><td class="wrap">Decrypts: it turns each hint C<sub>1</sub> back into the mask r·Q. Whoever learns k reads every message ever sent to Q.</td></tr>
+            <tr><td>Public key Q = k·G</td><td class="wrap">Everyone</td><td class="wrap">No</td><td class="wrap">Encrypts: anyone can build masks r·Q for the receiver without being able to remove them.</td></tr>
+            <tr><td>Ephemeral r</td><td class="wrap">Sender, briefly</td><td class="wrap">Yes, then deleted</td><td class="wrap">Randomises every block, so equal letters give different ciphertexts. Must be fresh and unpredictable each time (§5 shows what happens if it is reused).</td></tr>
+            <tr><td>Shared mask S = r·Q = k·C<sub>1</sub></td><td class="wrap">Sender and receiver</td><td class="wrap">Yes, never sent</td><td class="wrap">The Diffie–Hellman value: computable by the sender (knows r) and the receiver (knows k), but not from G, Q and C<sub>1</sub> alone.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- §2 Caesar -->
+  <section class="block" aria-labelledby="h2x">
+    <div class="ph"><h2 id="h2x"><span class="tag">§2</span>The Caesar cipher</h2>
+      <p class="q">Shift every letter by the same amount s. The same message as in §1; spaces are left as they are.</p></div>
+    <div class="inner">
+      <div class="controls">
+        <div class="field">
+          <label class="label" for="shiftIn">Key: shift s</label>
+          <div class="krow"><input type="range" id="shiftRange" min="0" max="25" value="3" aria-label="Shift" style="width:220px"><input type="number" id="shiftIn" min="0" max="25" value="3" style="width:80px"></div>
+        </div>
+      </div>
+      <div class="wheel" id="wheel" aria-label="Substitution table: plaintext letter above, ciphertext letter below"></div>
+      <div class="pipe">
+        <div class="stn"><div class="l"><span class="n">encrypt</span><span class="t">E(x) = (x + s) mod 26</span></div>
+          <div class="r"><div class="val" id="cPlain"></div><div class="big" id="cCipher"></div></div></div>
+        <div class="stn"><div class="l"><span class="n">decrypt</span><span class="t">D(y) = (y − s) mod 26</span></div>
+          <div class="r"><div class="big" id="cDec"></div><p class="check" id="cChk"></p></div></div>
+      </div>
+      <p class="note">The same key s encrypts and decrypts (a symmetric cipher), and the same plaintext letter always becomes the same ciphertext letter: in the table above, every highlighted column is used for every occurrence of that letter.</p>
+    </div>
+  </section>
+
+  <!-- §3 comparison -->
+  <section class="block" aria-labelledby="h3x">
+    <div class="ph"><h2 id="h3x"><span class="tag">§3</span>Similarities and differences</h2>
+      <p class="q">Procedures, key spaces and the statistics of the ciphertext.</p></div>
+    <div class="inner">
+      <div class="callout"><b>The common idea.</b> Both schemes encrypt by <i>adding a secret shift in a group</i>: Caesar adds s in the group of 26 letters, EC-ElGamal adds the point r·Q in the group of curve points. The difference is where the shift comes from. Caesar uses one fixed shift for every letter, agreed in advance. EC-ElGamal uses a new random shift for every block, agreed on the fly through Diffie–Hellman and removable only with the private key.</div>
+      <div class="tablewrap">
+        <table class="ktable">
+          <thead><tr><th></th><th>Toy EC-ElGamal (§1)</th><th>Caesar (§2)</th></tr></thead>
+          <tbody id="cmpT"></tbody>
+        </table>
+      </div>
+      <div class="h3">Statistics of a longer passage</div>
+      <p class="note" id="statNote"></p>
+      <div class="cols">
+        <div class="chart"><h3>Plaintext letters</h3><div class="svgw" id="chPlain"></div></div>
+        <div class="chart"><h3 id="chCaesarH">Caesar ciphertext letters</h3><div class="svgw" id="chCaesar"></div></div>
+        <div class="chart"><h3 id="chEccH">Toy ECC ciphertext points</h3><div class="svgw" id="chEcc"></div></div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Measure</th><th class="num">Plaintext</th><th class="num">Caesar ciphertext</th><th class="num">ECC ciphertext</th><th>Meaning</th></tr></thead>
+          <tbody id="statT"></tbody>
+        </table>
+      </div>
+      <ul class="findings" id="fStat"></ul>
+    </div>
+  </section>
+
+  <!-- §4 Caesar cryptanalysis -->
+  <section class="block" aria-labelledby="h4x">
+    <div class="ph"><h2 id="h4x"><span class="tag">§4</span>Statistical cryptanalysis of the Caesar cipher</h2>
+      <p class="q">Learn how English letters are distributed from a corpus, then pick the shift whose decryption looks most like English.</p></div>
+    <div class="inner">
+      <div class="cols two">
+        <div class="chart">
+          <h3>Corpus letter frequencies</h3>
+          <p class="sub" id="corpusInfo"></p>
+          <div class="svgw" id="chCorpus"></div>
+        </div>
+        <div class="prose">
+          <h3>The algorithm</h3>
+          <ol class="steps">
+            <li><b>Model the language.</b> From the training corpus count each letter's probability p(x) and each pair's probability p(y | x).</li>
+            <li><b>Try every key.</b> Decrypt the ciphertext with all 26 shifts. This exhaustive search is trivial; the hard part is recognising the right answer.</li>
+            <li><b>Score each candidate.</b> χ² distance between its letter counts and the corpus frequencies (lower is better), or the log-likelihood of its letter pairs under the bigram model (higher is better), or the share of its words found in the corpus vocabulary.</li>
+            <li><b>Pick the best score.</b> The shortcut "most frequent ciphertext letter = E" needs no search at all and is included for comparison.</li>
+          </ol>
+        </div>
+      </div>
+      <details class="more">
+        <summary>Use your own training corpus (paste text or load a .txt file)</summary>
+        <div>
+          <p class="note">The built-in corpus is about 2,500 words of plain English prose written for this page; its last four paragraphs are held out for testing. Any larger English text (for example a public-domain book saved as .txt) gives a better model. 80% of a custom corpus is used for training and 20% for testing.</p>
+          <textarea id="corpusIn" rows="5" placeholder="Paste English text here…" spellcheck="false"></textarea>
+          <div class="btns"><input type="file" id="corpusFile" accept=".txt,text/plain" aria-label="Load a text file"><button class="btn primary" id="corpusUse" type="button">Use this corpus</button><button class="btn" id="corpusReset" type="button">Back to built-in corpus</button><span class="status" id="corpusStatus"></span></div>
+        </div>
+      </details>
+
+      <div class="h3">Attack a ciphertext</div>
+      <div class="field">
+        <label class="label" for="atkIn">Ciphertext (defaults to the Caesar ciphertext from §2)</label>
+        <textarea id="atkIn" rows="3" spellcheck="false"></textarea>
+        <div class="btns"><button class="btn" id="atkFrom2" type="button">Use §2 ciphertext</button><button class="btn" id="atkLong" type="button">Use a 300-letter test passage</button><button class="btn" id="atkShort" type="button">Use a 6-letter test fragment</button></div>
+      </div>
+      <div class="stats" id="atkTiles"></div>
+      <div class="cols two">
+        <div class="chart"><h3>Bigram score of each candidate shift</h3><p class="sub">Average log-probability per letter pair; the tallest bar is the bigram method's answer.</p><div class="svgw" id="chAtk"></div></div>
+        <div class="chart"><h3>Ciphertext letters vs. corpus shifted by the χ² answer</h3><p class="sub">Bars: ciphertext letter counts. Ticks: corpus frequencies moved by the recovered shift.</p><div class="svgw" id="chFit"></div></div>
+      </div>
+      <details class="more"><summary>All 26 candidate decryptions (exhaustive key search)</summary>
+        <div class="tablewrap scroll"><table><thead><tr><th class="num">Shift</th><th>Decryption</th><th class="num">χ²</th><th class="num">Bigram</th><th class="num">Words found</th></tr></thead><tbody id="atkT"></tbody></table></div>
+      </details>
+
+      <div class="h3">How much ciphertext is needed?</div>
+      <div class="btns"><button class="btn primary" id="expRun" type="button">Run the experiment again</button><span class="status" id="expStatus"></span></div>
+      <div class="chart">
+        <h3>Share of keys recovered vs. ciphertext length</h3>
+        <p class="sub" id="expSub"></p>
+        <div class="svgw" id="chExp"></div>
+        <div class="legend" id="expLegend"></div>
+      </div>
+      <details class="more"><summary>Table view</summary><div class="tablewrap"><table><thead id="expTH"></thead><tbody id="expT"></tbody></table></div></details>
+      <ul class="findings" id="fExp"></ul>
+      <div class="prose">
+        <h3>Effectiveness and limitations</h3>
+        <p><b>It works because Caesar is deterministic and letter-by-letter.</b> Every plaintext E becomes the same ciphertext letter, so the shape of the English letter distribution survives encryption intact and only moves. Once a few dozen letters are available, matching that shape identifies the key almost always.</p>
+        <p><b>It fails on short or unusual text.</b> With a handful of letters the counts are mostly noise: a 6-letter word has no reason to contain an E, and several shifts can produce plausible fragments. Text that is not ordinary prose (names, abbreviations, numbers, a different language, deliberately odd writing that avoids common letters) breaks the model's assumption. The method also needs to know the language: an English model scores French poorly.</p>
+        <p><b>It needs no cleverness about the key.</b> The key space has only 26 elements, so all of them can be tried; statistics are needed only to recognise the right one. The same scoring therefore also breaks ciphers with far larger key spaces, such as general substitution (26! ≈ 2<sup>88</sup> keys), with a search that climbs towards better n-gram scores instead of trying every key.</p>
+      </div>
+      <div class="tablewrap">
+        <table class="ktable">
+          <thead><tr><th>Approach</th><th>What it does</th><th>Needs</th><th>Strength</th><th>Weakness</th></tr></thead>
+          <tbody>
+            <tr><td>Exhaustive key search</td><td class="wrap">Decrypt with all 26 keys and look at the results</td><td class="wrap">A way to recognise the plaintext (a person, a dictionary or a score)</td><td class="wrap">Always contains the answer; only 26 candidates</td><td class="wrap">Only practical because the key space is tiny; recognising the winner automatically is the real problem</td></tr>
+            <tr><td>Most frequent letter = E</td><td class="wrap">Align the commonest ciphertext letter with E</td><td class="wrap">Only one letter count</td><td class="wrap">No search, one line of code</td><td class="wrap">Wrong whenever E is not the commonest letter, which is often the case below about 100 letters</td></tr>
+            <tr><td>Letter-frequency analysis (χ²)</td><td class="wrap">Compare all 26 letter counts with the corpus distribution</td><td class="wrap">Unigram frequencies</td><td class="wrap">Uses every letter; very reliable from about 30 letters</td><td class="wrap">Ignores order, so short texts with unusual letters fool it</td></tr>
+            <tr><td>n-gram scoring (bigrams)</td><td class="wrap">Score letter pairs (or triples, quadruples) of each candidate</td><td class="wrap">A larger corpus for reliable pair statistics</td><td class="wrap">Captures that "th" is common and "qz" impossible; best on short texts</td><td class="wrap">Higher n needs much more training text; scores are relative, not proof</td></tr>
+            <tr><td>Dictionary words</td><td class="wrap">Count how much of the candidate consists of known words</td><td class="wrap">Word boundaries in the ciphertext and a vocabulary</td><td class="wrap">Very convincing when spaces are kept</td><td class="wrap">Useless if spaces are removed; rare words and names are missing from the vocabulary</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- §5 ECC attack -->
+  <section class="block" aria-labelledby="h5x">
+    <div class="ph"><h2 id="h5x"><span class="tag">§5</span>Attacking the toy ECC scheme</h2>
+      <p class="q">The weakness is not in the curve arithmetic but in the size of the key space. The attacker knows the public parameters, the public key Q and the ciphertext from §1.</p></div>
+    <div class="inner">
+      <div class="val" id="atkTarget"></div>
+      <div class="btns">
+        <button class="btn primary" id="bBrute" type="button">Brute-force k</button>
+        <button class="btn" id="bBsgs" type="button">Baby-step giant-step</button>
+        <button class="btn" id="bR" type="button">Recover each r instead</button>
+        <button class="btn" id="bStop" type="button" disabled>Stop</button>
+      </div>
+      <div class="bar" aria-hidden="true"><span id="atkBar"></span></div>
+      <pre class="log" id="atkLog" aria-live="polite"></pre>
+      <div class="prose">
+        <h3>The attack</h3>
+        <p><b>Exhaustive search.</b> Start at R = G and keep adding G: R = 1·G, 2·G, 3·G, … After each step compare R with the public key Q. The first match gives k, and k decrypts every block exactly as the receiver would. The cost is one point addition per candidate, so at most |key range| additions.</p>
+        <p><b>Baby-step giant-step.</b> Write k = i·m + j with m ≈ √K. Store the m "baby" points j·G in a table, then walk "giant" steps Q − i·(m·G) until one lands in the table. About 2√K additions instead of K, paid for with memory for √K points. This is the square-root speed-up behind every generic discrete-log attack.</p>
+        <p><b>Without k at all.</b> On the toy curves the random values r are small as well, so each block's r can be read off from C<sub>1</sub> = r·G by the same search and the block decrypted as C<sub>2</sub> − r·Q. On the secp256k1 options only k is restricted; r is a full 256-bit number and this route is closed.</p>
+      </div>
+
+      <div class="h3">How the cost grows</div>
+      <div class="btns"><button class="btn primary" id="scaleRun" type="button">Run larger timing experiment</button><span class="status" id="scaleStatus"></span></div>
+      <div class="chart">
+        <h3>Time to recover a secp256k1 key from a k-bit range (log scale)</h3>
+        <p class="sub">Dots are measured in this browser; dashed lines extend them at the same cost per step. Reference lines show one second, one year and the age of the universe.</p>
+        <div class="svgw" id="chScale"></div>
+        <div class="legend"><span class="cE"><i class="sw line"></i>brute force (2<sup>b</sup> steps)</span><span class="cS"><i class="sw line"></i>baby-step giant-step (2·2<sup>b/2</sup> steps)</span><span><i class="sw dash" style="color:var(--ink-3)"></i>extrapolation</span></div>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Key space</th><th class="num">Brute force</th><th class="num">BSGS / Pollard rho (√)</th><th>Comment</th></tr></thead><tbody id="scaleT"></tbody></table></div>
+
+      <div class="h3">Two attacks, compared</div>
+      <div class="tablewrap">
+        <table class="ktable">
+          <thead><tr><th></th><th>Statistical attack on Caesar (§4)</th><th>Key search on the toy ECC scheme</th></tr></thead>
+          <tbody>
+            <tr><td>Searches</td><td class="wrap">26 shifts</td><td class="wrap">Every k in the restricted range (or √ of it with BSGS)</td></tr>
+            <tr><td>Checks a guess by</td><td class="wrap">A statistical score of the decrypted text: probable, never certain</td><td class="wrap">An exact test, k·G = Q. The public key is a perfect oracle</td></tr>
+            <tr><td>Needs ciphertext?</td><td class="wrap">Yes, and enough of it</td><td class="wrap">No. k is found from Q alone, offline, before any message is sent</td></tr>
+            <tr><td>Depends on the message</td><td class="wrap">Yes: its length and its language</td><td class="wrap">No: a one-letter message is as easy as a book</td></tr>
+            <tr><td>What leaks</td><td class="wrap">The plaintext's letter statistics, which pass through the deterministic encryption unchanged</td><td class="wrap">Nothing statistical: randomised encryption makes the ciphertext flat (§3). Only the key space is too small</td></tr>
+            <tr><td>Fix</td><td class="wrap">A bigger key space alone does not help: substitution ciphers with 2<sup>88</sup> keys still fall to the same statistics</td><td class="wrap">A full-size key space (k uniform in [1, n − 1], n ≈ 2<sup>256</sup>) defeats it completely</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="prose">
+        <h3>Why this does not work against real ECC</h3>
+        <p id="whyReal"></p>
+        <p>Exhaustive search is not the best attack on a full-size key, but the best known one is not much better. For a well-chosen curve such as secp256k1 (prime order, no special structure) the fastest known method is Pollard's rho, which needs about √n ≈ 2<sup>128</sup> group operations and negligible memory. Baby-step giant-step needs the same time and 2<sup>128</sup> stored points. Every generic algorithm is limited by the same square-root bound, so a 256-bit key gives about 128 bits of security, and the encryption leaks no statistics that would offer a shortcut.</p>
+      </div>
+
+      <div class="h3">Optional: other attacks, and where each weakness comes from</div>
+      <div class="tablewrap">
+        <table class="ktable">
+          <thead><tr><th>Attack</th><th>Source of weakness</th><th>What it exploits</th></tr></thead>
+          <tbody>
+            <tr><td>Exhaustive search, BSGS</td><td><span class="pill k">Restricted key space</span></td><td class="wrap">Few possible keys plus a public key to test them against. Demonstrated above.</td></tr>
+            <tr><td>Pollard's kangaroo (λ)</td><td><span class="pill k">Restricted key space</span></td><td class="wrap">Designed for a key known to lie in an interval [a, b]: √(b − a) steps like BSGS, but almost no memory.</td></tr>
+            <tr><td>Precomputed tables, any r</td><td><span class="pill d">Toy curve design</span></td><td class="wrap">On the mod-17 and mod-97 curves the whole group has 18 or 79 points, so every discrete log (k and every r) can be looked up. "Recover each r" above uses this.</td></tr>
+            <tr><td>Small subgroups</td><td><span class="pill d">Toy curve design</span></td><td class="wrap">Mod 17 the group has 18 = 2·3² points and G generates only 9 of them. With k = 6 (a multiple of 3) the mask r·Q can only be O, 3G or 6G, so every block with r = 3 or 6, a quarter of them, is sent unmasked (§1, §3). Implementations that accept points without checking them can also be fed low-order points that leak k modulo small numbers. secp256k1 has prime order and cofactor 1.</td></tr>
+            <tr><td>Anomalous or weak curves</td><td><span class="pill d">Toy curve design</span></td><td class="wrap">Curves with exactly p points (mod 61 and mod 127 in HMWK 1) have a polynomial-time discrete-log attack (Smart's attack). Curve choice matters, not just size.</td></tr>
+            <tr><td>Reused or predictable r</td><td><span class="pill d">Scheme design</span> <span class="pill i">Implementation</span></td><td class="wrap">With one r for all blocks, C<sub>2</sub> differences reveal plaintext differences and the scheme collapses into a Caesar cipher. Demonstrated below.</td></tr>
+            <tr><td>Malleability</td><td><span class="pill d">Scheme design</span></td><td class="wrap">There is no authentication: adding G to C<sub>2</sub> turns every symbol into the next one, without the key. Demonstrated below. Real schemes (ECIES) add a MAC.</td></tr>
+            <tr><td>Reordering, deleting blocks</td><td><span class="pill d">Scheme design</span></td><td class="wrap">Each symbol is encrypted on its own, so blocks can be dropped, repeated or reordered unnoticed, and the ciphertext length gives away the message length.</td></tr>
+            <tr><td>Weak key generation</td><td><span class="pill k">Restricted key space</span> <span class="pill i">Implementation</span></td><td class="wrap">The real-world version of this homework: keys made from too little randomness. The "Profanity" vanity-address generator seeded keys with 32 random bits, and in 2022 attackers recovered such Ethereum keys and drained wallets.</td></tr>
+            <tr><td>Side channels</td><td><span class="pill i">Implementation</span></td><td class="wrap">A naive double-and-add takes longer for 1-bits than for 0-bits, so timing or power traces can reveal k. Production code uses constant-time arithmetic.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cols two">
+        <div class="chart">
+          <h3>Demo · malleability: add G to every C<sub>2</sub></h3>
+          <p class="sub" id="malSub"></p>
+          <div class="btns"><button class="btn" id="malRun" type="button">Tamper with the ciphertext</button></div>
+          <pre class="log" id="malLog"></pre>
+        </div>
+        <div class="chart">
+          <h3>Demo · one r for every block</h3>
+          <p class="sub" id="nonceSub"></p>
+          <div class="btns"><button class="btn" id="nonceRun" type="button">Encrypt a passage with a reused r and attack it</button></div>
+          <pre class="log" id="nonceLog"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Toy parameters for teaching only. Curve arithmetic for secp256k1 from @noble/curves (MIT licence, Paul Miller), inlined; the toy curves use the same plain JavaScript as HMWK 1.</span>
+    <nav><a href="https://om3r-l3v1.github.io/HW1-statistics-Rome/hmwk1-ecc-keys.html">HMWK 1 · keys</a><a href="https://om3r-l3v1.github.io/HW1-statistics-Rome/hmwk2-wallet-pipeline.html">HMWK 2 · wallet</a></nav>
+  </footer>
+</div>
+<div id="tip" hidden></div>
+
+<script>/* @noble/hashes 1.4.0, @noble/curves 1.4.0, @scure/bip32 1.4.0, @scure/bip39 1.3.0 (with English word list). MIT License, Copyright (c) Paul Miller (paulmillr.com). Bundled with esbuild. */
+(()=>{var Rr=Object.defineProperty;var $r=(t,e)=>{for(var r in e)Rr(t,r,{get:e[r],enumerable:!0})};function Q(t){if(!Number.isSafeInteger(t)||t<0)throw new Error(`positive integer expected, not ${t}`)}function jr(t){return t instanceof Uint8Array||t!=null&&typeof t=="object"&&t.constructor.name==="Uint8Array"}function j(t,...e){if(!jr(t))throw new Error("Uint8Array expected");if(e.length>0&&!e.includes(t.length))throw new Error(`Uint8Array expected of length ${e}, not of length=${t.length}`)}function $e(t){if(typeof t!="function"||typeof t.create!="function")throw new Error("Hash should be wrapped by utils.wrapConstructor");Q(t.outputLen),Q(t.blockLen)}function te(t,e=!0){if(t.destroyed)throw new Error("Hash instance has been destroyed");if(e&&t.finished)throw new Error("Hash#digest() has already been called")}function je(t,e){j(t);let r=e.outputLen;if(t.length<r)throw new Error(`digestInto() expects output buffer of length at least ${r}`)}var De=BigInt(4294967295),nt=BigInt(32);function $t(t,e=!1){return e?{h:Number(t&De),l:Number(t>>nt&De)}:{h:Number(t>>nt&De)|0,l:Number(t&De)|0}}function ot(t,e=!1){let r=new Uint32Array(t.length),n=new Uint32Array(t.length);for(let o=0;o<t.length;o++){let{h:i,l:s}=$t(t[o],e);[r[o],n[o]]=[i,s]}return[r,n]}var Dr=(t,e)=>BigInt(t>>>0)<<nt|BigInt(e>>>0),zr=(t,e,r)=>t>>>r,Pr=(t,e,r)=>t<<32-r|e>>>r,Vr=(t,e,r)=>t>>>r|e<<32-r,Mr=(t,e,r)=>t<<32-r|e>>>r,Gr=(t,e,r)=>t<<64-r|e>>>r-32,Wr=(t,e,r)=>t>>>r-32|e<<64-r,Zr=(t,e)=>e,Yr=(t,e)=>t,it=(t,e,r)=>t<<r|e>>>32-r,st=(t,e,r)=>e<<r|t>>>32-r,at=(t,e,r)=>e<<r-32|t>>>64-r,ct=(t,e,r)=>t<<r-32|e>>>64-r;function Xr(t,e,r,n){let o=(e>>>0)+(n>>>0);return{h:t+r+(o/2**32|0)|0,l:o|0}}var Jr=(t,e,r)=>(t>>>0)+(e>>>0)+(r>>>0),Qr=(t,e,r,n)=>e+r+n+(t/2**32|0)|0,Fr=(t,e,r,n)=>(t>>>0)+(e>>>0)+(r>>>0)+(n>>>0),en=(t,e,r,n,o)=>e+r+n+o+(t/2**32|0)|0,tn=(t,e,r,n,o)=>(t>>>0)+(e>>>0)+(r>>>0)+(n>>>0)+(o>>>0),rn=(t,e,r,n,o,i)=>e+r+n+o+i+(t/2**32|0)|0;var nn={fromBig:$t,split:ot,toBig:Dr,shrSH:zr,shrSL:Pr,rotrSH:Vr,rotrSL:Mr,rotrBH:Gr,rotrBL:Wr,rotr32H:Zr,rotr32L:Yr,rotlSH:it,rotlSL:st,rotlBH:at,rotlBL:ct,add:Xr,add3L:Jr,add3H:Qr,add4L:Fr,add4H:en,add5H:rn,add5L:tn},S=nn;var ze=typeof globalThis=="object"&&"crypto"in globalThis?globalThis.crypto:void 0;var Dt=t=>new Uint32Array(t.buffer,t.byteOffset,Math.floor(t.byteLength/4)),F=t=>new DataView(t.buffer,t.byteOffset,t.byteLength),Z=(t,e)=>t<<32-e|t>>>e,Ce=(t,e)=>t<<e|t>>>32-e>>>0,lt=new Uint8Array(new Uint32Array([287454020]).buffer)[0]===68,on=t=>t<<24&4278190080|t<<8&16711680|t>>>8&65280|t>>>24&255;function ft(t){for(let e=0;e<t.length;e++)t[e]=on(t[e])}var sn=Array.from({length:256},(t,e)=>e.toString(16).padStart(2,"0"));function zt(t){j(t);let e="";for(let r=0;r<t.length;r++)e+=sn[t[r]];return e}var re={_0:48,_9:57,_A:65,_F:70,_a:97,_f:102};function jt(t){if(t>=re._0&&t<=re._9)return t-re._0;if(t>=re._A&&t<=re._F)return t-(re._A-10);if(t>=re._a&&t<=re._f)return t-(re._a-10)}function Pt(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);let e=t.length,r=e/2;if(e%2)throw new Error("padded hex string expected, got unpadded hex of length "+e);let n=new Uint8Array(r);for(let o=0,i=0;o<r;o++,i+=2){let s=jt(t.charCodeAt(i)),a=jt(t.charCodeAt(i+1));if(s===void 0||a===void 0){let c=t[i]+t[i+1];throw new Error('hex string expected, got non-hex character "'+c+'" at index '+i)}n[o]=s*16+a}return n}function ut(t){if(typeof t!="string")throw new Error(`utf8ToBytes expected string, got ${typeof t}`);return new Uint8Array(new TextEncoder().encode(t))}function Y(t){return typeof t=="string"&&(t=ut(t)),j(t),t}function Ee(...t){let e=0;for(let n=0;n<t.length;n++){let o=t[n];j(o),e+=o.length}let r=new Uint8Array(e);for(let n=0,o=0;n<t.length;n++){let i=t[n];r.set(i,o),o+=i.length}return r}var fe=class{clone(){return this._cloneInto()}},an={}.toString;function Vt(t,e){if(e!==void 0&&an.call(e)!=="[object Object]")throw new Error("Options should be object or undefined");return Object.assign(t,e)}function ue(t){let e=n=>t().update(Y(n)).digest(),r=t();return e.outputLen=r.outputLen,e.blockLen=r.blockLen,e.create=()=>t(),e}function Mt(t){let e=(n,o)=>t(o).update(Y(n)).digest(),r=t({});return e.outputLen=r.outputLen,e.blockLen=r.blockLen,e.create=n=>t(n),e}function Gt(t=32){if(ze&&typeof ze.getRandomValues=="function")return ze.getRandomValues(new Uint8Array(t));throw new Error("crypto.getRandomValues must be defined")}var Yt=[],Xt=[],Jt=[],cn=BigInt(0),Ne=BigInt(1),ln=BigInt(2),fn=BigInt(7),un=BigInt(256),dn=BigInt(113);for(let t=0,e=Ne,r=1,n=0;t<24;t++){[r,n]=[n,(2*r+3*n)%5],Yt.push(2*(5*n+r)),Xt.push((t+1)*(t+2)/2%64);let o=cn;for(let i=0;i<7;i++)e=(e<<Ne^(e>>fn)*dn)%un,e&ln&&(o^=Ne<<(Ne<<BigInt(i))-Ne);Jt.push(o)}var[hn,pn]=ot(Jt,!0),Wt=(t,e,r)=>r>32?at(t,e,r):it(t,e,r),Zt=(t,e,r)=>r>32?ct(t,e,r):st(t,e,r);function bn(t,e=24){let r=new Uint32Array(10);for(let n=24-e;n<24;n++){for(let s=0;s<10;s++)r[s]=t[s]^t[s+10]^t[s+20]^t[s+30]^t[s+40];for(let s=0;s<10;s+=2){let a=(s+8)%10,c=(s+2)%10,l=r[c],d=r[c+1],f=Wt(l,d,1)^r[a],m=Zt(l,d,1)^r[a+1];for(let y=0;y<50;y+=10)t[s+y]^=f,t[s+y+1]^=m}let o=t[2],i=t[3];for(let s=0;s<24;s++){let a=Xt[s],c=Wt(o,i,a),l=Zt(o,i,a),d=Yt[s];o=t[d],i=t[d+1],t[d]=c,t[d+1]=l}for(let s=0;s<50;s+=10){for(let a=0;a<10;a++)r[a]=t[s+a];for(let a=0;a<10;a++)t[s+a]^=~r[(a+2)%10]&r[(a+4)%10]}t[0]^=hn[n],t[1]^=pn[n]}r.fill(0)}var Pe=class t extends fe{constructor(e,r,n,o=!1,i=24){if(super(),this.blockLen=e,this.suffix=r,this.outputLen=n,this.enableXOF=o,this.rounds=i,this.pos=0,this.posOut=0,this.finished=!1,this.destroyed=!1,Q(n),0>=this.blockLen||this.blockLen>=200)throw new Error("Sha3 supports only keccak-f1600 function");this.state=new Uint8Array(200),this.state32=Dt(this.state)}keccak(){lt||ft(this.state32),bn(this.state32,this.rounds),lt||ft(this.state32),this.posOut=0,this.pos=0}update(e){te(this);let{blockLen:r,state:n}=this;e=Y(e);let o=e.length;for(let i=0;i<o;){let s=Math.min(r-this.pos,o-i);for(let a=0;a<s;a++)n[this.pos++]^=e[i++];this.pos===r&&this.keccak()}return this}finish(){if(this.finished)return;this.finished=!0;let{state:e,suffix:r,pos:n,blockLen:o}=this;e[n]^=r,r&128&&n===o-1&&this.keccak(),e[o-1]^=128,this.keccak()}writeInto(e){te(this,!1),j(e),this.finish();let r=this.state,{blockLen:n}=this;for(let o=0,i=e.length;o<i;){this.posOut>=n&&this.keccak();let s=Math.min(n-this.posOut,i-o);e.set(r.subarray(this.posOut,this.posOut+s),o),this.posOut+=s,o+=s}return e}xofInto(e){if(!this.enableXOF)throw new Error("XOF is not possible for this instance");return this.writeInto(e)}xof(e){return Q(e),this.xofInto(new Uint8Array(e))}digestInto(e){if(je(e,this),this.finished)throw new Error("digest() was already called");return this.writeInto(e),this.destroy(),e}digest(){return this.digestInto(new Uint8Array(this.outputLen))}destroy(){this.destroyed=!0,this.state.fill(0)}_cloneInto(e){let{blockLen:r,suffix:n,outputLen:o,rounds:i,enableXOF:s}=this;return e||(e=new t(r,n,o,s,i)),e.state32.set(this.state32),e.pos=this.pos,e.posOut=this.posOut,e.finished=this.finished,e.rounds=i,e.suffix=n,e.outputLen=o,e.enableXOF=s,e.destroyed=this.destroyed,e}},de=(t,e,r)=>ue(()=>new Pe(e,t,r)),ko=de(6,144,224/8),Qt=de(6,136,256/8),Ao=de(6,104,384/8),So=de(6,72,512/8),Io=de(1,144,224/8),Ft=de(1,136,256/8),Lo=de(1,104,384/8),To=de(1,72,512/8),er=(t,e,r)=>Mt((n={})=>new Pe(e,t,n.dkLen===void 0?r:n.dkLen,!0)),Ho=er(31,168,128/8),Oo=er(31,136,256/8);function mn(t,e,r,n){if(typeof t.setBigUint64=="function")return t.setBigUint64(e,r,n);let o=BigInt(32),i=BigInt(4294967295),s=Number(r>>o&i),a=Number(r&i),c=n?4:0,l=n?0:4;t.setUint32(e+c,s,n),t.setUint32(e+l,a,n)}var tr=(t,e,r)=>t&e^~t&r,rr=(t,e,r)=>t&e^t&r^e&r,he=class extends fe{constructor(e,r,n,o){super(),this.blockLen=e,this.outputLen=r,this.padOffset=n,this.isLE=o,this.finished=!1,this.length=0,this.pos=0,this.destroyed=!1,this.buffer=new Uint8Array(e),this.view=F(this.buffer)}update(e){te(this);let{view:r,buffer:n,blockLen:o}=this;e=Y(e);let i=e.length;for(let s=0;s<i;){let a=Math.min(o-this.pos,i-s);if(a===o){let c=F(e);for(;o<=i-s;s+=o)this.process(c,s);continue}n.set(e.subarray(s,s+a),this.pos),this.pos+=a,s+=a,this.pos===o&&(this.process(r,0),this.pos=0)}return this.length+=e.length,this.roundClean(),this}digestInto(e){te(this),je(e,this),this.finished=!0;let{buffer:r,view:n,blockLen:o,isLE:i}=this,{pos:s}=this;r[s++]=128,this.buffer.subarray(s).fill(0),this.padOffset>o-s&&(this.process(n,0),s=0);for(let f=s;f<o;f++)r[f]=0;mn(n,o-8,BigInt(this.length*8),i),this.process(n,0);let a=F(e),c=this.outputLen;if(c%4)throw new Error("_sha2: outputLen should be aligned to 32bit");let l=c/4,d=this.get();if(l>d.length)throw new Error("_sha2: outputLen bigger than state");for(let f=0;f<l;f++)a.setUint32(4*f,d[f],i)}digest(){let{buffer:e,outputLen:r}=this;this.digestInto(e);let n=e.slice(0,r);return this.destroy(),n}_cloneInto(e){e||(e=new this.constructor),e.set(...this.get());let{blockLen:r,buffer:n,length:o,finished:i,destroyed:s,pos:a}=this;return e.length=o,e.pos=a,e.finished=i,e.destroyed=s,o%r&&e.buffer.set(n),e}};var gn=new Uint32Array([1116352408,1899447441,3049323471,3921009573,961987163,1508970993,2453635748,2870763221,3624381080,310598401,607225278,1426881987,1925078388,2162078206,2614888103,3248222580,3835390401,4022224774,264347078,604807628,770255983,1249150122,1555081692,1996064986,2554220882,2821834349,2952996808,3210313671,3336571891,3584528711,113926993,338241895,666307205,773529912,1294757372,1396182291,1695183700,1986661051,2177026350,2456956037,2730485921,2820302411,3259730800,3345764771,3516065817,3600352804,4094571909,275423344,430227734,506948616,659060556,883997877,958139571,1322822218,1537002063,1747873779,1955562222,2024104815,2227730452,2361852424,2428436474,2756734187,3204031479,3329325298]),pe=new Uint32Array([1779033703,3144134277,1013904242,2773480762,1359893119,2600822924,528734635,1541459225]),be=new Uint32Array(64),dt=class extends he{constructor(){super(64,32,8,!1),this.A=pe[0]|0,this.B=pe[1]|0,this.C=pe[2]|0,this.D=pe[3]|0,this.E=pe[4]|0,this.F=pe[5]|0,this.G=pe[6]|0,this.H=pe[7]|0}get(){let{A:e,B:r,C:n,D:o,E:i,F:s,G:a,H:c}=this;return[e,r,n,o,i,s,a,c]}set(e,r,n,o,i,s,a,c){this.A=e|0,this.B=r|0,this.C=n|0,this.D=o|0,this.E=i|0,this.F=s|0,this.G=a|0,this.H=c|0}process(e,r){for(let f=0;f<16;f++,r+=4)be[f]=e.getUint32(r,!1);for(let f=16;f<64;f++){let m=be[f-15],y=be[f-2],w=Z(m,7)^Z(m,18)^m>>>3,u=Z(y,17)^Z(y,19)^y>>>10;be[f]=u+be[f-7]+w+be[f-16]|0}let{A:n,B:o,C:i,D:s,E:a,F:c,G:l,H:d}=this;for(let f=0;f<64;f++){let m=Z(a,6)^Z(a,11)^Z(a,25),y=d+m+tr(a,c,l)+gn[f]+be[f]|0,u=(Z(n,2)^Z(n,13)^Z(n,22))+rr(n,o,i)|0;d=l,l=c,c=a,a=s+y|0,s=i,i=o,o=n,n=y+u|0}n=n+this.A|0,o=o+this.B|0,i=i+this.C|0,s=s+this.D|0,a=a+this.E|0,c=c+this.F|0,l=l+this.G|0,d=d+this.H|0,this.set(n,o,i,s,a,c,l,d)}roundClean(){be.fill(0)}destroy(){this.set(0,0,0,0,0,0,0,0),this.buffer.fill(0)}};var ne=ue(()=>new dt);var[yn,wn]=S.split(["0x428a2f98d728ae22","0x7137449123ef65cd","0xb5c0fbcfec4d3b2f","0xe9b5dba58189dbbc","0x3956c25bf348b538","0x59f111f1b605d019","0x923f82a4af194f9b","0xab1c5ed5da6d8118","0xd807aa98a3030242","0x12835b0145706fbe","0x243185be4ee4b28c","0x550c7dc3d5ffb4e2","0x72be5d74f27b896f","0x80deb1fe3b1696b1","0x9bdc06a725c71235","0xc19bf174cf692694","0xe49b69c19ef14ad2","0xefbe4786384f25e3","0x0fc19dc68b8cd5b5","0x240ca1cc77ac9c65","0x2de92c6f592b0275","0x4a7484aa6ea6e483","0x5cb0a9dcbd41fbd4","0x76f988da831153b5","0x983e5152ee66dfab","0xa831c66d2db43210","0xb00327c898fb213f","0xbf597fc7beef0ee4","0xc6e00bf33da88fc2","0xd5a79147930aa725","0x06ca6351e003826f","0x142929670a0e6e70","0x27b70a8546d22ffc","0x2e1b21385c26c926","0x4d2c6dfc5ac42aed","0x53380d139d95b3df","0x650a73548baf63de","0x766a0abb3c77b2a8","0x81c2c92e47edaee6","0x92722c851482353b","0xa2bfe8a14cf10364","0xa81a664bbc423001","0xc24b8b70d0f89791","0xc76c51a30654be30","0xd192e819d6ef5218","0xd69906245565a910","0xf40e35855771202a","0x106aa07032bbd1b8","0x19a4c116b8d2d0c8","0x1e376c085141ab53","0x2748774cdf8eeb99","0x34b0bcb5e19b48a8","0x391c0cb3c5c95a63","0x4ed8aa4ae3418acb","0x5b9cca4f7763e373","0x682e6ff3d6b2b8a3","0x748f82ee5defb2fc","0x78a5636f43172f60","0x84c87814a1f0ab72","0x8cc702081a6439ec","0x90befffa23631e28","0xa4506cebde82bde9","0xbef9a3f7b2c67915","0xc67178f2e372532b","0xca273eceea26619c","0xd186b8c721c0c207","0xeada7dd6cde0eb1e","0xf57d4f7fee6ed178","0x06f067aa72176fba","0x0a637dc5a2c898a6","0x113f9804bef90dae","0x1b710b35131c471b","0x28db77f523047d84","0x32caab7b40c72493","0x3c9ebe0a15c9bebc","0x431d67c49c100d4c","0x4cc5d4becb3e42b6","0x597f299cfc657e2a","0x5fcb6fab3ad6faec","0x6c44198c4a475817"].map(t=>BigInt(t))),me=new Uint32Array(80),ge=new Uint32Array(80),ht=class extends he{constructor(){super(128,64,16,!1),this.Ah=1779033703,this.Al=-205731576,this.Bh=-1150833019,this.Bl=-2067093701,this.Ch=1013904242,this.Cl=-23791573,this.Dh=-1521486534,this.Dl=1595750129,this.Eh=1359893119,this.El=-1377402159,this.Fh=-1694144372,this.Fl=725511199,this.Gh=528734635,this.Gl=-79577749,this.Hh=1541459225,this.Hl=327033209}get(){let{Ah:e,Al:r,Bh:n,Bl:o,Ch:i,Cl:s,Dh:a,Dl:c,Eh:l,El:d,Fh:f,Fl:m,Gh:y,Gl:w,Hh:u,Hl:h}=this;return[e,r,n,o,i,s,a,c,l,d,f,m,y,w,u,h]}set(e,r,n,o,i,s,a,c,l,d,f,m,y,w,u,h){this.Ah=e|0,this.Al=r|0,this.Bh=n|0,this.Bl=o|0,this.Ch=i|0,this.Cl=s|0,this.Dh=a|0,this.Dl=c|0,this.Eh=l|0,this.El=d|0,this.Fh=f|0,this.Fl=m|0,this.Gh=y|0,this.Gl=w|0,this.Hh=u|0,this.Hl=h|0}process(e,r){for(let g=0;g<16;g++,r+=4)me[g]=e.getUint32(r),ge[g]=e.getUint32(r+=4);for(let g=16;g<80;g++){let I=me[g-15]|0,E=ge[g-15]|0,v=S.rotrSH(I,E,1)^S.rotrSH(I,E,8)^S.shrSH(I,E,7),A=S.rotrSL(I,E,1)^S.rotrSL(I,E,8)^S.shrSL(I,E,7),k=me[g-2]|0,U=ge[g-2]|0,H=S.rotrSH(k,U,19)^S.rotrBH(k,U,61)^S.shrSH(k,U,6),T=S.rotrSL(k,U,19)^S.rotrBL(k,U,61)^S.shrSL(k,U,6),q=S.add4L(A,T,ge[g-7],ge[g-16]),$=S.add4H(q,v,H,me[g-7],me[g-16]);me[g]=$|0,ge[g]=q|0}let{Ah:n,Al:o,Bh:i,Bl:s,Ch:a,Cl:c,Dh:l,Dl:d,Eh:f,El:m,Fh:y,Fl:w,Gh:u,Gl:h,Hh:b,Hl:B}=this;for(let g=0;g<80;g++){let I=S.rotrSH(f,m,14)^S.rotrSH(f,m,18)^S.rotrBH(f,m,41),E=S.rotrSL(f,m,14)^S.rotrSL(f,m,18)^S.rotrBL(f,m,41),v=f&y^~f&u,A=m&w^~m&h,k=S.add5L(B,E,A,wn[g],ge[g]),U=S.add5H(k,b,I,v,yn[g],me[g]),H=k|0,T=S.rotrSH(n,o,28)^S.rotrBH(n,o,34)^S.rotrBH(n,o,39),q=S.rotrSL(n,o,28)^S.rotrBL(n,o,34)^S.rotrBL(n,o,39),$=n&i^n&a^i&a,X=o&s^o&c^s&c;b=u|0,B=h|0,u=y|0,h=w|0,y=f|0,w=m|0,{h:f,l:m}=S.add(l|0,d|0,U|0,H|0),l=a|0,d=c|0,a=i|0,c=s|0,i=n|0,s=o|0;let p=S.add3L(H,q,X);n=S.add3H(p,U,T,$),o=p|0}({h:n,l:o}=S.add(this.Ah|0,this.Al|0,n|0,o|0)),{h:i,l:s}=S.add(this.Bh|0,this.Bl|0,i|0,s|0),{h:a,l:c}=S.add(this.Ch|0,this.Cl|0,a|0,c|0),{h:l,l:d}=S.add(this.Dh|0,this.Dl|0,l|0,d|0),{h:f,l:m}=S.add(this.Eh|0,this.El|0,f|0,m|0),{h:y,l:w}=S.add(this.Fh|0,this.Fl|0,y|0,w|0),{h:u,l:h}=S.add(this.Gh|0,this.Gl|0,u|0,h|0),{h:b,l:B}=S.add(this.Hh|0,this.Hl|0,b|0,B|0),this.set(n,o,i,s,a,c,l,d,f,m,y,w,u,h,b,B)}roundClean(){me.fill(0),ge.fill(0)}destroy(){this.buffer.fill(0),this.set(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)}};var Be=ue(()=>new ht);var Ve=class extends fe{constructor(e,r){super(),this.finished=!1,this.destroyed=!1,$e(e);let n=Y(r);if(this.iHash=e.create(),typeof this.iHash.update!="function")throw new Error("Expected instance of class which extends utils.Hash");this.blockLen=this.iHash.blockLen,this.outputLen=this.iHash.outputLen;let o=this.blockLen,i=new Uint8Array(o);i.set(n.length>o?e.create().update(n).digest():n);for(let s=0;s<i.length;s++)i[s]^=54;this.iHash.update(i),this.oHash=e.create();for(let s=0;s<i.length;s++)i[s]^=106;this.oHash.update(i),i.fill(0)}update(e){return te(this),this.iHash.update(e),this}digestInto(e){te(this),j(e,this.outputLen),this.finished=!0,this.iHash.digestInto(e),this.oHash.update(e),this.oHash.digestInto(e),this.destroy()}digest(){let e=new Uint8Array(this.oHash.outputLen);return this.digestInto(e),e}_cloneInto(e){e||(e=Object.create(Object.getPrototypeOf(this),{}));let{oHash:r,iHash:n,finished:o,destroyed:i,blockLen:s,outputLen:a}=this;return e=e,e.finished=o,e.destroyed=i,e.blockLen=s,e.outputLen=a,e.oHash=r._cloneInto(e.oHash),e.iHash=n._cloneInto(e.iHash),e}destroy(){this.destroyed=!0,this.oHash.destroy(),this.iHash.destroy()}},ee=(t,e,r)=>new Ve(t,e).update(r).digest();ee.create=(t,e)=>new Ve(t,e);function xn(t,e,r,n){$e(t);let o=Vt({dkLen:32,asyncTick:10},n),{c:i,dkLen:s,asyncTick:a}=o;if(Q(i),Q(s),Q(a),i<1)throw new Error("PBKDF2: iterations (c) should be >= 1");let c=Y(e),l=Y(r),d=new Uint8Array(s),f=ee.create(t,c),m=f._cloneInto().update(l);return{c:i,dkLen:s,asyncTick:a,DK:d,PRF:f,PRFSalt:m}}function vn(t,e,r,n,o){return t.destroy(),e.destroy(),n&&n.destroy(),o.fill(0),r}function Me(t,e,r,n){let{c:o,dkLen:i,DK:s,PRF:a,PRFSalt:c}=xn(t,e,r,n),l,d=new Uint8Array(4),f=F(d),m=new Uint8Array(a.outputLen);for(let y=1,w=0;w<i;y++,w+=a.outputLen){let u=s.subarray(w,w+a.outputLen);f.setInt32(0,y,!1),(l=c._cloneInto(l)).update(d).digestInto(m),u.set(m.subarray(0,u.length));for(let h=1;h<o;h++){a._cloneInto(l).update(m).digestInto(m);for(let b=0;b<u.length;b++)u[b]^=m[b]}}return vn(a,c,s,l,m)}var gt={};$r(gt,{abytes:()=>Oe,bitGet:()=>Ln,bitLen:()=>In,bitMask:()=>qe,bitSet:()=>Tn,bytesToHex:()=>ke,bytesToNumberBE:()=>ie,bytesToNumberLE:()=>We,concatBytes:()=>_e,createHmacDrbg:()=>mt,ensureBytes:()=>P,equalBytes:()=>An,hexToBytes:()=>Ae,hexToNumber:()=>bt,isBytes:()=>ye,numberToBytesBE:()=>we,numberToBytesLE:()=>Ze,numberToHexUnpadded:()=>sr,numberToVarBytesBE:()=>kn,utf8ToBytes:()=>Sn,validateObject:()=>xe});var ir=BigInt(0),Ge=BigInt(1),En=BigInt(2);function ye(t){return t instanceof Uint8Array||t!=null&&typeof t=="object"&&t.constructor.name==="Uint8Array"}function Oe(t){if(!ye(t))throw new Error("Uint8Array expected")}var Bn=Array.from({length:256},(t,e)=>e.toString(16).padStart(2,"0"));function ke(t){Oe(t);let e="";for(let r=0;r<t.length;r++)e+=Bn[t[r]];return e}function sr(t){let e=t.toString(16);return e.length&1?`0${e}`:e}function bt(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);return BigInt(t===""?"0":`0x${t}`)}var oe={_0:48,_9:57,_A:65,_F:70,_a:97,_f:102};function nr(t){if(t>=oe._0&&t<=oe._9)return t-oe._0;if(t>=oe._A&&t<=oe._F)return t-(oe._A-10);if(t>=oe._a&&t<=oe._f)return t-(oe._a-10)}function Ae(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);let e=t.length,r=e/2;if(e%2)throw new Error("padded hex string expected, got unpadded hex of length "+e);let n=new Uint8Array(r);for(let o=0,i=0;o<r;o++,i+=2){let s=nr(t.charCodeAt(i)),a=nr(t.charCodeAt(i+1));if(s===void 0||a===void 0){let c=t[i]+t[i+1];throw new Error('hex string expected, got non-hex character "'+c+'" at index '+i)}n[o]=s*16+a}return n}function ie(t){return bt(ke(t))}function We(t){return Oe(t),bt(ke(Uint8Array.from(t).reverse()))}function we(t,e){return Ae(t.toString(16).padStart(e*2,"0"))}function Ze(t,e){return we(t,e).reverse()}function kn(t){return Ae(sr(t))}function P(t,e,r){let n;if(typeof e=="string")try{n=Ae(e)}catch(i){throw new Error(`${t} must be valid hex string, got "${e}". Cause: ${i}`)}else if(ye(e))n=Uint8Array.from(e);else throw new Error(`${t} must be hex string or Uint8Array`);let o=n.length;if(typeof r=="number"&&o!==r)throw new Error(`${t} expected ${r} bytes, got ${o}`);return n}function _e(...t){let e=0;for(let n=0;n<t.length;n++){let o=t[n];Oe(o),e+=o.length}let r=new Uint8Array(e);for(let n=0,o=0;n<t.length;n++){let i=t[n];r.set(i,o),o+=i.length}return r}function An(t,e){if(t.length!==e.length)return!1;let r=0;for(let n=0;n<t.length;n++)r|=t[n]^e[n];return r===0}function Sn(t){if(typeof t!="string")throw new Error(`utf8ToBytes expected string, got ${typeof t}`);return new Uint8Array(new TextEncoder().encode(t))}function In(t){let e;for(e=0;t>ir;t>>=Ge,e+=1);return e}function Ln(t,e){return t>>BigInt(e)&Ge}function Tn(t,e,r){return t|(r?Ge:ir)<<BigInt(e)}var qe=t=>(En<<BigInt(t-1))-Ge,pt=t=>new Uint8Array(t),or=t=>Uint8Array.from(t);function mt(t,e,r){if(typeof t!="number"||t<2)throw new Error("hashLen must be a number");if(typeof e!="number"||e<2)throw new Error("qByteLen must be a number");if(typeof r!="function")throw new Error("hmacFn must be a function");let n=pt(t),o=pt(t),i=0,s=()=>{n.fill(1),o.fill(0),i=0},a=(...f)=>r(o,n,...f),c=(f=pt())=>{o=a(or([0]),f),n=a(),f.length!==0&&(o=a(or([1]),f),n=a())},l=()=>{if(i++>=1e3)throw new Error("drbg: tried 1000 values");let f=0,m=[];for(;f<e;){n=a();let y=n.slice();m.push(y),f+=n.length}return _e(...m)};return(f,m)=>{s(),c(f);let y;for(;!(y=m(l()));)c();return s(),y}}var Hn={bigint:t=>typeof t=="bigint",function:t=>typeof t=="function",boolean:t=>typeof t=="boolean",string:t=>typeof t=="string",stringOrUint8Array:t=>typeof t=="string"||ye(t),isSafeInteger:t=>Number.isSafeInteger(t),array:t=>Array.isArray(t),field:(t,e)=>e.Fp.isValid(t),hash:t=>typeof t=="function"&&Number.isSafeInteger(t.outputLen)};function xe(t,e,r={}){let n=(o,i,s)=>{let a=Hn[i];if(typeof a!="function")throw new Error(`Invalid validator "${i}", expected function`);let c=t[o];if(!(s&&c===void 0)&&!a(c,t))throw new Error(`Invalid param ${String(o)}=${c} (${typeof c}), expected ${i}`)};for(let[o,i]of Object.entries(e))n(o,i,!1);for(let[o,i]of Object.entries(r))n(o,i,!0);return t}var N=BigInt(0),C=BigInt(1),Se=BigInt(2),On=BigInt(3),yt=BigInt(4),ar=BigInt(5),cr=BigInt(8),_n=BigInt(9),Un=BigInt(16);function R(t,e){let r=t%e;return r>=N?r:e+r}function Cn(t,e,r){if(r<=N||e<N)throw new Error("Expected power/modulo > 0");if(r===C)return N;let n=C;for(;e>N;)e&C&&(n=n*t%r),t=t*t%r,e>>=C;return n}function V(t,e,r){let n=t;for(;e-- >N;)n*=n,n%=r;return n}function Ye(t,e){if(t===N||e<=N)throw new Error(`invert: expected positive integers, got n=${t} mod=${e}`);let r=R(t,e),n=e,o=N,i=C,s=C,a=N;for(;r!==N;){let l=n/r,d=n%r,f=o-s*l,m=i-a*l;n=r,r=d,o=s,i=a,s=f,a=m}if(n!==C)throw new Error("invert: does not exist");return R(o,e)}function Nn(t){let e=(t-C)/Se,r,n,o;for(r=t-C,n=0;r%Se===N;r/=Se,n++);for(o=Se;o<t&&Cn(o,e,t)!==t-C;o++);if(n===1){let s=(t+C)/yt;return function(c,l){let d=c.pow(l,s);if(!c.eql(c.sqr(d),l))throw new Error("Cannot find square root");return d}}let i=(r+C)/Se;return function(a,c){if(a.pow(c,e)===a.neg(a.ONE))throw new Error("Cannot find square root");let l=n,d=a.pow(a.mul(a.ONE,o),r),f=a.pow(c,i),m=a.pow(c,r);for(;!a.eql(m,a.ONE);){if(a.eql(m,a.ZERO))return a.ZERO;let y=1;for(let u=a.sqr(m);y<l&&!a.eql(u,a.ONE);y++)u=a.sqr(u);let w=a.pow(d,C<<BigInt(l-y-1));d=a.sqr(w),f=a.mul(f,w),m=a.mul(m,d),l=y}return f}}function qn(t){if(t%yt===On){let e=(t+C)/yt;return function(n,o){let i=n.pow(o,e);if(!n.eql(n.sqr(i),o))throw new Error("Cannot find square root");return i}}if(t%cr===ar){let e=(t-ar)/cr;return function(n,o){let i=n.mul(o,Se),s=n.pow(i,e),a=n.mul(o,s),c=n.mul(n.mul(a,Se),s),l=n.mul(a,n.sub(c,n.ONE));if(!n.eql(n.sqr(l),o))throw new Error("Cannot find square root");return l}}return t%Un,Nn(t)}var Kn=["create","isValid","is0","neg","inv","sqrt","sqr","eql","add","sub","mul","pow","div","addN","subN","mulN","sqrN"];function wt(t){let e={ORDER:"bigint",MASK:"bigint",BYTES:"isSafeInteger",BITS:"isSafeInteger"},r=Kn.reduce((n,o)=>(n[o]="function",n),e);return xe(t,r)}function Rn(t,e,r){if(r<N)throw new Error("Expected power > 0");if(r===N)return t.ONE;if(r===C)return e;let n=t.ONE,o=e;for(;r>N;)r&C&&(n=t.mul(n,o)),o=t.sqr(o),r>>=C;return n}function $n(t,e){let r=new Array(e.length),n=e.reduce((i,s,a)=>t.is0(s)?i:(r[a]=i,t.mul(i,s)),t.ONE),o=t.inv(n);return e.reduceRight((i,s,a)=>t.is0(s)?i:(r[a]=t.mul(i,r[a]),t.mul(i,s)),o),r}function xt(t,e){let r=e!==void 0?e:t.toString(2).length,n=Math.ceil(r/8);return{nBitLength:r,nByteLength:n}}function lr(t,e,r=!1,n={}){if(t<=N)throw new Error(`Expected Field ORDER > 0, got ${t}`);let{nBitLength:o,nByteLength:i}=xt(t,e);if(i>2048)throw new Error("Field lengths over 2048 bytes are not supported");let s=qn(t),a=Object.freeze({ORDER:t,BITS:o,BYTES:i,MASK:qe(o),ZERO:N,ONE:C,create:c=>R(c,t),isValid:c=>{if(typeof c!="bigint")throw new Error(`Invalid field element: expected bigint, got ${typeof c}`);return N<=c&&c<t},is0:c=>c===N,isOdd:c=>(c&C)===C,neg:c=>R(-c,t),eql:(c,l)=>c===l,sqr:c=>R(c*c,t),add:(c,l)=>R(c+l,t),sub:(c,l)=>R(c-l,t),mul:(c,l)=>R(c*l,t),pow:(c,l)=>Rn(a,c,l),div:(c,l)=>R(c*Ye(l,t),t),sqrN:c=>c*c,addN:(c,l)=>c+l,subN:(c,l)=>c-l,mulN:(c,l)=>c*l,inv:c=>Ye(c,t),sqrt:n.sqrt||(c=>s(a,c)),invertBatch:c=>$n(a,c),cmov:(c,l,d)=>d?l:c,toBytes:c=>r?Ze(c,i):we(c,i),fromBytes:c=>{if(c.length!==i)throw new Error(`Fp.fromBytes: expected ${i}, got ${c.length}`);return r?We(c):ie(c)}});return Object.freeze(a)}function fr(t){if(typeof t!="bigint")throw new Error("field order must be bigint");let e=t.toString(2).length;return Math.ceil(e/8)}function vt(t){let e=fr(t);return e+Math.ceil(e/2)}function ur(t,e,r=!1){let n=t.length,o=fr(e),i=vt(e);if(n<16||n<i||n>1024)throw new Error(`expected ${i}-1024 bytes of input, got ${n}`);let s=r?ie(t):We(t),a=R(s,e-C)+C;return r?Ze(a,o):we(a,o)}var Dn=BigInt(0),Et=BigInt(1);function dr(t,e){let r=(o,i)=>{let s=i.negate();return o?s:i},n=o=>{let i=Math.ceil(e/o)+1,s=2**(o-1);return{windows:i,windowSize:s}};return{constTimeNegate:r,unsafeLadder(o,i){let s=t.ZERO,a=o;for(;i>Dn;)i&Et&&(s=s.add(a)),a=a.double(),i>>=Et;return s},precomputeWindow(o,i){let{windows:s,windowSize:a}=n(i),c=[],l=o,d=l;for(let f=0;f<s;f++){d=l,c.push(d);for(let m=1;m<a;m++)d=d.add(l),c.push(d);l=d.double()}return c},wNAF(o,i,s){let{windows:a,windowSize:c}=n(o),l=t.ZERO,d=t.BASE,f=BigInt(2**o-1),m=2**o,y=BigInt(o);for(let w=0;w<a;w++){let u=w*c,h=Number(s&f);s>>=y,h>c&&(h-=m,s+=Et);let b=u,B=u+Math.abs(h)-1,g=w%2!==0,I=h<0;h===0?d=d.add(r(g,i[b])):l=l.add(r(I,i[B]))}return{p:l,f:d}},wNAFCached(o,i,s,a){let c=o._WINDOW_SIZE||1,l=i.get(o);return l||(l=this.precomputeWindow(o,c),c!==1&&i.set(o,a(l))),this.wNAF(c,l,s)}}}function Bt(t){return wt(t.Fp),xe(t,{n:"bigint",h:"bigint",Gx:"field",Gy:"field"},{nBitLength:"isSafeInteger",nByteLength:"isSafeInteger"}),Object.freeze({...xt(t.n,t.nBitLength),...t,p:t.Fp.ORDER})}function zn(t){let e=Bt(t);xe(e,{a:"field",b:"field"},{allowedPrivateKeyLengths:"array",wrapPrivateKey:"boolean",isTorsionFree:"function",clearCofactor:"function",allowInfinityPoint:"boolean",fromBytes:"function",toBytes:"function"});let{endo:r,Fp:n,a:o}=e;if(r){if(!n.eql(o,n.ZERO))throw new Error("Endomorphism can only be defined for Koblitz curves that have a=0");if(typeof r!="object"||typeof r.beta!="bigint"||typeof r.splitScalar!="function")throw new Error("Expected endomorphism with beta: bigint and splitScalar: function")}return Object.freeze({...e})}var{bytesToNumberBE:Pn,hexToBytes:Vn}=gt,Ie={Err:class extends Error{constructor(e=""){super(e)}},_parseInt(t){let{Err:e}=Ie;if(t.length<2||t[0]!==2)throw new e("Invalid signature integer tag");let r=t[1],n=t.subarray(2,r+2);if(!r||n.length!==r)throw new e("Invalid signature integer: wrong length");if(n[0]&128)throw new e("Invalid signature integer: negative");if(n[0]===0&&!(n[1]&128))throw new e("Invalid signature integer: unnecessary leading zero");return{d:Pn(n),l:t.subarray(r+2)}},toSig(t){let{Err:e}=Ie,r=typeof t=="string"?Vn(t):t;Oe(r);let n=r.length;if(n<2||r[0]!=48)throw new e("Invalid signature tag");if(r[1]!==n-2)throw new e("Invalid signature: incorrect length");let{d:o,l:i}=Ie._parseInt(r.subarray(2)),{d:s,l:a}=Ie._parseInt(i);if(a.length)throw new e("Invalid signature: left bytes after parsing");return{r:o,s}},hexFromSig(t){let e=l=>Number.parseInt(l[0],16)&8?"00"+l:l,r=l=>{let d=l.toString(16);return d.length&1?`0${d}`:d},n=e(r(t.s)),o=e(r(t.r)),i=n.length/2,s=o.length/2,a=r(i),c=r(s);return`30${r(s+i+4)}02${c}${o}02${a}${n}`}},se=BigInt(0),G=BigInt(1),oi=BigInt(2),hr=BigInt(3),ii=BigInt(4);function Mn(t){let e=zn(t),{Fp:r}=e,n=e.toBytes||((w,u,h)=>{let b=u.toAffine();return _e(Uint8Array.from([4]),r.toBytes(b.x),r.toBytes(b.y))}),o=e.fromBytes||(w=>{let u=w.subarray(1),h=r.fromBytes(u.subarray(0,r.BYTES)),b=r.fromBytes(u.subarray(r.BYTES,2*r.BYTES));return{x:h,y:b}});function i(w){let{a:u,b:h}=e,b=r.sqr(w),B=r.mul(b,w);return r.add(r.add(B,r.mul(w,u)),h)}if(!r.eql(r.sqr(e.Gy),i(e.Gx)))throw new Error("bad generator point: equation left != right");function s(w){return typeof w=="bigint"&&se<w&&w<e.n}function a(w){if(!s(w))throw new Error("Expected valid bigint: 0 < bigint < curve.n")}function c(w){let{allowedPrivateKeyLengths:u,nByteLength:h,wrapPrivateKey:b,n:B}=e;if(u&&typeof w!="bigint"){if(ye(w)&&(w=ke(w)),typeof w!="string"||!u.includes(w.length))throw new Error("Invalid key");w=w.padStart(h*2,"0")}let g;try{g=typeof w=="bigint"?w:ie(P("private key",w,h))}catch{throw new Error(`private key must be ${h} bytes, hex or bigint, not ${typeof w}`)}return b&&(g=R(g,B)),a(g),g}let l=new Map;function d(w){if(!(w instanceof f))throw new Error("ProjectivePoint expected")}class f{constructor(u,h,b){if(this.px=u,this.py=h,this.pz=b,u==null||!r.isValid(u))throw new Error("x required");if(h==null||!r.isValid(h))throw new Error("y required");if(b==null||!r.isValid(b))throw new Error("z required")}static fromAffine(u){let{x:h,y:b}=u||{};if(!u||!r.isValid(h)||!r.isValid(b))throw new Error("invalid affine point");if(u instanceof f)throw new Error("projective point not allowed");let B=g=>r.eql(g,r.ZERO);return B(h)&&B(b)?f.ZERO:new f(h,b,r.ONE)}get x(){return this.toAffine().x}get y(){return this.toAffine().y}static normalizeZ(u){let h=r.invertBatch(u.map(b=>b.pz));return u.map((b,B)=>b.toAffine(h[B])).map(f.fromAffine)}static fromHex(u){let h=f.fromAffine(o(P("pointHex",u)));return h.assertValidity(),h}static fromPrivateKey(u){return f.BASE.multiply(c(u))}_setWindowSize(u){this._WINDOW_SIZE=u,l.delete(this)}assertValidity(){if(this.is0()){if(e.allowInfinityPoint&&!r.is0(this.py))return;throw new Error("bad point: ZERO")}let{x:u,y:h}=this.toAffine();if(!r.isValid(u)||!r.isValid(h))throw new Error("bad point: x or y not FE");let b=r.sqr(h),B=i(u);if(!r.eql(b,B))throw new Error("bad point: equation left != right");if(!this.isTorsionFree())throw new Error("bad point: not in prime-order subgroup")}hasEvenY(){let{y:u}=this.toAffine();if(r.isOdd)return!r.isOdd(u);throw new Error("Field doesn't support isOdd")}equals(u){d(u);let{px:h,py:b,pz:B}=this,{px:g,py:I,pz:E}=u,v=r.eql(r.mul(h,E),r.mul(g,B)),A=r.eql(r.mul(b,E),r.mul(I,B));return v&&A}negate(){return new f(this.px,r.neg(this.py),this.pz)}double(){let{a:u,b:h}=e,b=r.mul(h,hr),{px:B,py:g,pz:I}=this,E=r.ZERO,v=r.ZERO,A=r.ZERO,k=r.mul(B,B),U=r.mul(g,g),H=r.mul(I,I),T=r.mul(B,g);return T=r.add(T,T),A=r.mul(B,I),A=r.add(A,A),E=r.mul(u,A),v=r.mul(b,H),v=r.add(E,v),E=r.sub(U,v),v=r.add(U,v),v=r.mul(E,v),E=r.mul(T,E),A=r.mul(b,A),H=r.mul(u,H),T=r.sub(k,H),T=r.mul(u,T),T=r.add(T,A),A=r.add(k,k),k=r.add(A,k),k=r.add(k,H),k=r.mul(k,T),v=r.add(v,k),H=r.mul(g,I),H=r.add(H,H),k=r.mul(H,T),E=r.sub(E,k),A=r.mul(H,U),A=r.add(A,A),A=r.add(A,A),new f(E,v,A)}add(u){d(u);let{px:h,py:b,pz:B}=this,{px:g,py:I,pz:E}=u,v=r.ZERO,A=r.ZERO,k=r.ZERO,U=e.a,H=r.mul(e.b,hr),T=r.mul(h,g),q=r.mul(b,I),$=r.mul(B,E),X=r.add(h,b),p=r.add(g,I);X=r.mul(X,p),p=r.add(T,q),X=r.sub(X,p),p=r.add(h,B);let x=r.add(g,E);return p=r.mul(p,x),x=r.add(T,$),p=r.sub(p,x),x=r.add(b,B),v=r.add(I,E),x=r.mul(x,v),v=r.add(q,$),x=r.sub(x,v),k=r.mul(U,p),v=r.mul(H,$),k=r.add(v,k),v=r.sub(q,k),k=r.add(q,k),A=r.mul(v,k),q=r.add(T,T),q=r.add(q,T),$=r.mul(U,$),p=r.mul(H,p),q=r.add(q,$),$=r.sub(T,$),$=r.mul(U,$),p=r.add(p,$),T=r.mul(q,p),A=r.add(A,T),T=r.mul(x,p),v=r.mul(X,v),v=r.sub(v,T),T=r.mul(X,q),k=r.mul(x,k),k=r.add(k,T),new f(v,A,k)}subtract(u){return this.add(u.negate())}is0(){return this.equals(f.ZERO)}wNAF(u){return y.wNAFCached(this,l,u,h=>{let b=r.invertBatch(h.map(B=>B.pz));return h.map((B,g)=>B.toAffine(b[g])).map(f.fromAffine)})}multiplyUnsafe(u){let h=f.ZERO;if(u===se)return h;if(a(u),u===G)return this;let{endo:b}=e;if(!b)return y.unsafeLadder(this,u);let{k1neg:B,k1:g,k2neg:I,k2:E}=b.splitScalar(u),v=h,A=h,k=this;for(;g>se||E>se;)g&G&&(v=v.add(k)),E&G&&(A=A.add(k)),k=k.double(),g>>=G,E>>=G;return B&&(v=v.negate()),I&&(A=A.negate()),A=new f(r.mul(A.px,b.beta),A.py,A.pz),v.add(A)}multiply(u){a(u);let h=u,b,B,{endo:g}=e;if(g){let{k1neg:I,k1:E,k2neg:v,k2:A}=g.splitScalar(h),{p:k,f:U}=this.wNAF(E),{p:H,f:T}=this.wNAF(A);k=y.constTimeNegate(I,k),H=y.constTimeNegate(v,H),H=new f(r.mul(H.px,g.beta),H.py,H.pz),b=k.add(H),B=U.add(T)}else{let{p:I,f:E}=this.wNAF(h);b=I,B=E}return f.normalizeZ([b,B])[0]}multiplyAndAddUnsafe(u,h,b){let B=f.BASE,g=(E,v)=>v===se||v===G||!E.equals(B)?E.multiplyUnsafe(v):E.multiply(v),I=g(this,h).add(g(u,b));return I.is0()?void 0:I}toAffine(u){let{px:h,py:b,pz:B}=this,g=this.is0();u==null&&(u=g?r.ONE:r.inv(B));let I=r.mul(h,u),E=r.mul(b,u),v=r.mul(B,u);if(g)return{x:r.ZERO,y:r.ZERO};if(!r.eql(v,r.ONE))throw new Error("invZ was invalid");return{x:I,y:E}}isTorsionFree(){let{h:u,isTorsionFree:h}=e;if(u===G)return!0;if(h)return h(f,this);throw new Error("isTorsionFree() has not been declared for the elliptic curve")}clearCofactor(){let{h:u,clearCofactor:h}=e;return u===G?this:h?h(f,this):this.multiplyUnsafe(e.h)}toRawBytes(u=!0){return this.assertValidity(),n(f,this,u)}toHex(u=!0){return ke(this.toRawBytes(u))}}f.BASE=new f(e.Gx,e.Gy,r.ONE),f.ZERO=new f(r.ZERO,r.ONE,r.ZERO);let m=e.nBitLength,y=dr(f,e.endo?Math.ceil(m/2):m);return{CURVE:e,ProjectivePoint:f,normPrivateKeyToScalar:c,weierstrassEquation:i,isWithinCurveOrder:s}}function Gn(t){let e=Bt(t);return xe(e,{hash:"hash",hmac:"function",randomBytes:"function"},{bits2int:"function",bits2int_modN:"function",lowS:"boolean"}),Object.freeze({lowS:!0,...e})}function pr(t){let e=Gn(t),{Fp:r,n}=e,o=r.BYTES+1,i=2*r.BYTES+1;function s(p){return se<p&&p<r.ORDER}function a(p){return R(p,n)}function c(p){return Ye(p,n)}let{ProjectivePoint:l,normPrivateKeyToScalar:d,weierstrassEquation:f,isWithinCurveOrder:m}=Mn({...e,toBytes(p,x,L){let _=x.toAffine(),O=r.toBytes(_.x),K=_e;return L?K(Uint8Array.from([x.hasEvenY()?2:3]),O):K(Uint8Array.from([4]),O,r.toBytes(_.y))},fromBytes(p){let x=p.length,L=p[0],_=p.subarray(1);if(x===o&&(L===2||L===3)){let O=ie(_);if(!s(O))throw new Error("Point is not on curve");let K=f(O),D;try{D=r.sqrt(K)}catch(W){let ce=W instanceof Error?": "+W.message:"";throw new Error("Point is not on curve"+ce)}let z=(D&G)===G;return(L&1)===1!==z&&(D=r.neg(D)),{x:O,y:D}}else if(x===i&&L===4){let O=r.fromBytes(_.subarray(0,r.BYTES)),K=r.fromBytes(_.subarray(r.BYTES,2*r.BYTES));return{x:O,y:K}}else throw new Error(`Point of length ${x} was invalid. Expected ${o} compressed bytes or ${i} uncompressed bytes`)}}),y=p=>ke(we(p,e.nByteLength));function w(p){let x=n>>G;return p>x}function u(p){return w(p)?a(-p):p}let h=(p,x,L)=>ie(p.slice(x,L));class b{constructor(x,L,_){this.r=x,this.s=L,this.recovery=_,this.assertValidity()}static fromCompact(x){let L=e.nByteLength;return x=P("compactSignature",x,L*2),new b(h(x,0,L),h(x,L,2*L))}static fromDER(x){let{r:L,s:_}=Ie.toSig(P("DER",x));return new b(L,_)}assertValidity(){if(!m(this.r))throw new Error("r must be 0 < r < CURVE.n");if(!m(this.s))throw new Error("s must be 0 < s < CURVE.n")}addRecoveryBit(x){return new b(this.r,this.s,x)}recoverPublicKey(x){let{r:L,s:_,recovery:O}=this,K=A(P("msgHash",x));if(O==null||![0,1,2,3].includes(O))throw new Error("recovery id invalid");let D=O===2||O===3?L+e.n:L;if(D>=r.ORDER)throw new Error("recovery id 2 or 3 invalid");let z=O&1?"03":"02",ae=l.fromHex(z+y(D)),W=c(D),ce=a(-K*W),Ue=a(_*W),le=l.BASE.multiplyAndAddUnsafe(ae,ce,Ue);if(!le)throw new Error("point at infinify");return le.assertValidity(),le}hasHighS(){return w(this.s)}normalizeS(){return this.hasHighS()?new b(this.r,a(-this.s),this.recovery):this}toDERRawBytes(){return Ae(this.toDERHex())}toDERHex(){return Ie.hexFromSig({r:this.r,s:this.s})}toCompactRawBytes(){return Ae(this.toCompactHex())}toCompactHex(){return y(this.r)+y(this.s)}}let B={isValidPrivateKey(p){try{return d(p),!0}catch{return!1}},normPrivateKeyToScalar:d,randomPrivateKey:()=>{let p=vt(e.n);return ur(e.randomBytes(p),e.n)},precompute(p=8,x=l.BASE){return x._setWindowSize(p),x.multiply(BigInt(3)),x}};function g(p,x=!0){return l.fromPrivateKey(p).toRawBytes(x)}function I(p){let x=ye(p),L=typeof p=="string",_=(x||L)&&p.length;return x?_===o||_===i:L?_===2*o||_===2*i:p instanceof l}function E(p,x,L=!0){if(I(p))throw new Error("first arg must be private key");if(!I(x))throw new Error("second arg must be public key");return l.fromHex(x).multiply(d(p)).toRawBytes(L)}let v=e.bits2int||function(p){let x=ie(p),L=p.length*8-e.nBitLength;return L>0?x>>BigInt(L):x},A=e.bits2int_modN||function(p){return a(v(p))},k=qe(e.nBitLength);function U(p){if(typeof p!="bigint")throw new Error("bigint expected");if(!(se<=p&&p<k))throw new Error(`bigint expected < 2^${e.nBitLength}`);return we(p,e.nByteLength)}function H(p,x,L=T){if(["recovered","canonical"].some(ve=>ve in L))throw new Error("sign() legacy options not supported");let{hash:_,randomBytes:O}=e,{lowS:K,prehash:D,extraEntropy:z}=L;K==null&&(K=!0),p=P("msgHash",p),D&&(p=P("prehashed msgHash",_(p)));let ae=A(p),W=d(x),ce=[U(W),U(ae)];if(z!=null&&z!==!1){let ve=z===!0?O(r.BYTES):z;ce.push(P("extraEntropy",ve))}let Ue=_e(...ce),le=ae;function rt(ve){let Te=v(ve);if(!m(Te))return;let qt=c(Te),J=l.BASE.multiply(Te).toAffine(),He=a(J.x);if(He===se)return;let Re=a(qt*a(le+He*W));if(Re===se)return;let Kt=(J.x===He?0:2)|Number(J.y&G),Rt=Re;return K&&w(Re)&&(Rt=u(Re),Kt^=1),new b(He,Rt,Kt)}return{seed:Ue,k2sig:rt}}let T={lowS:e.lowS,prehash:!1},q={lowS:e.lowS,prehash:!1};function $(p,x,L=T){let{seed:_,k2sig:O}=H(p,x,L),K=e;return mt(K.hash.outputLen,K.nByteLength,K.hmac)(_,O)}l.BASE._setWindowSize(8);function X(p,x,L,_=q){let O=p;if(x=P("msgHash",x),L=P("publicKey",L),"strict"in _)throw new Error("options.strict was renamed to lowS");let{lowS:K,prehash:D}=_,z,ae;try{if(typeof O=="string"||ye(O))try{z=b.fromDER(O)}catch(J){if(!(J instanceof Ie.Err))throw J;z=b.fromCompact(O)}else if(typeof O=="object"&&typeof O.r=="bigint"&&typeof O.s=="bigint"){let{r:J,s:He}=O;z=new b(J,He)}else throw new Error("PARSE");ae=l.fromHex(L)}catch(J){if(J.message==="PARSE")throw new Error("signature must be Signature instance, Uint8Array or hex string");return!1}if(K&&z.hasHighS())return!1;D&&(x=e.hash(x));let{r:W,s:ce}=z,Ue=A(x),le=c(ce),rt=a(Ue*le),ve=a(W*le),Te=l.BASE.multiplyAndAddUnsafe(ae,rt,ve)?.toAffine();return Te?a(Te.x)===W:!1}return{CURVE:e,getPublicKey:g,getSharedSecret:E,sign:$,verify:X,ProjectivePoint:l,Signature:b,utils:B}}function Wn(t){return{hash:t,hmac:(e,...r)=>ee(t,e,Ee(...r)),randomBytes:Gt}}function br(t,e){let r=n=>pr({...t,...Wn(n)});return Object.freeze({...r(e),create:r})}var yr=BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),mr=BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),Zn=BigInt(1),kt=BigInt(2),gr=(t,e)=>(t+e/kt)/e;function Yn(t){let e=yr,r=BigInt(3),n=BigInt(6),o=BigInt(11),i=BigInt(22),s=BigInt(23),a=BigInt(44),c=BigInt(88),l=t*t*t%e,d=l*l*t%e,f=V(d,r,e)*d%e,m=V(f,r,e)*d%e,y=V(m,kt,e)*l%e,w=V(y,o,e)*y%e,u=V(w,i,e)*w%e,h=V(u,a,e)*u%e,b=V(h,c,e)*h%e,B=V(b,a,e)*u%e,g=V(B,r,e)*d%e,I=V(g,s,e)*w%e,E=V(I,n,e)*l%e,v=V(E,kt,e);if(!At.eql(At.sqr(v),t))throw new Error("Cannot find square root");return v}var At=lr(yr,void 0,void 0,{sqrt:Yn}),M=br({a:BigInt(0),b:BigInt(7),Fp:At,n:mr,Gx:BigInt("55066263022277343669578718895168534326250603453777594175500187360389116729240"),Gy:BigInt("32670510020758816978083085130507043184471273380659243275938904335757337482424"),h:BigInt(1),lowS:!0,endo:{beta:BigInt("0x7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),splitScalar:t=>{let e=mr,r=BigInt("0x3086d221a7d46bcde86c90e49284eb15"),n=-Zn*BigInt("0xe4437ed6010e88286f547fa90abfe4c3"),o=BigInt("0x114ca50f7a8e2f3f657c1108d9d44cfd8"),i=r,s=BigInt("0x100000000000000000000000000000000"),a=gr(i*t,e),c=gr(-n*t,e),l=R(t-a*r-c*o,e),d=R(-a*n-c*i,e),f=l>s,m=d>s;if(f&&(l=e-l),m&&(d=e-d),l>s||d>s)throw new Error("splitScalar: Endomorphism failed, k="+t);return{k1neg:f,k1:l,k2neg:m,k2:d}}}},ne),pi=BigInt(0);var bi=M.ProjectivePoint;var Xn=new Uint8Array([7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8]),xr=new Uint8Array(new Array(16).fill(0).map((t,e)=>e)),Jn=xr.map(t=>(9*t+5)%16),It=[xr],Lt=[Jn];for(let t=0;t<4;t++)for(let e of[It,Lt])e.push(e[t].map(r=>Xn[r]));var vr=[[11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8],[12,13,11,15,6,9,9,7,12,15,11,13,7,8,7,7],[13,15,14,11,7,7,6,8,13,14,13,12,5,5,6,9],[14,11,12,14,8,6,5,5,15,12,15,14,9,9,8,6],[15,12,13,13,9,5,8,6,14,11,12,11,8,6,5,5]].map(t=>new Uint8Array(t)),Qn=It.map((t,e)=>t.map(r=>vr[e][r])),Fn=Lt.map((t,e)=>t.map(r=>vr[e][r])),eo=new Uint32Array([0,1518500249,1859775393,2400959708,2840853838]),to=new Uint32Array([1352829926,1548603684,1836072691,2053994217,0]);function wr(t,e,r,n){return t===0?e^r^n:t===1?e&r|~e&n:t===2?(e|~r)^n:t===3?e&n|r&~n:e^(r|~n)}var Xe=new Uint32Array(16),St=class extends he{constructor(){super(64,20,8,!0),this.h0=1732584193,this.h1=-271733879,this.h2=-1732584194,this.h3=271733878,this.h4=-1009589776}get(){let{h0:e,h1:r,h2:n,h3:o,h4:i}=this;return[e,r,n,o,i]}set(e,r,n,o,i){this.h0=e|0,this.h1=r|0,this.h2=n|0,this.h3=o|0,this.h4=i|0}process(e,r){for(let y=0;y<16;y++,r+=4)Xe[y]=e.getUint32(r,!0);let n=this.h0|0,o=n,i=this.h1|0,s=i,a=this.h2|0,c=a,l=this.h3|0,d=l,f=this.h4|0,m=f;for(let y=0;y<5;y++){let w=4-y,u=eo[y],h=to[y],b=It[y],B=Lt[y],g=Qn[y],I=Fn[y];for(let E=0;E<16;E++){let v=Ce(n+wr(y,i,a,l)+Xe[b[E]]+u,g[E])+f|0;n=f,f=l,l=Ce(a,10)|0,a=i,i=v}for(let E=0;E<16;E++){let v=Ce(o+wr(w,s,c,d)+Xe[B[E]]+h,I[E])+m|0;o=m,m=d,d=Ce(c,10)|0,c=s,s=v}}this.set(this.h1+a+d|0,this.h2+l+m|0,this.h3+f+o|0,this.h4+n+s|0,this.h0+i+c|0)}roundClean(){Xe.fill(0)}destroy(){this.destroyed=!0,this.buffer.fill(0),this.set(0,0,0,0,0)}},Er=ue(()=>new St);function Le(t){if(!Number.isSafeInteger(t))throw new Error(`Wrong integer: ${t}`)}function Je(t){return t instanceof Uint8Array||t!=null&&typeof t=="object"&&t.constructor.name==="Uint8Array"}function Ot(...t){let e=i=>i,r=(i,s)=>a=>i(s(a)),n=t.map(i=>i.encode).reduceRight(r,e),o=t.map(i=>i.decode).reduce(r,e);return{encode:n,decode:o}}function Br(t){return{encode:e=>{if(!Array.isArray(e)||e.length&&typeof e[0]!="number")throw new Error("alphabet.encode input should be an array of numbers");return e.map(r=>{if(r<0||r>=t.length)throw new Error(`Digit index outside alphabet: ${r} (alphabet: ${t.length})`);return t[r]})},decode:e=>{if(!Array.isArray(e)||e.length&&typeof e[0]!="string")throw new Error("alphabet.decode input should be array of strings");return e.map(r=>{if(typeof r!="string")throw new Error(`alphabet.decode: not string element=${r}`);let n=t.indexOf(r);if(n===-1)throw new Error(`Unknown letter: "${r}". Allowed: ${t}`);return n})}}}function kr(t=""){if(typeof t!="string")throw new Error("join separator should be string");return{encode:e=>{if(!Array.isArray(e)||e.length&&typeof e[0]!="string")throw new Error("join.encode input should be array of strings");for(let r of e)if(typeof r!="string")throw new Error(`join.encode: non-string input=${r}`);return e.join(t)},decode:e=>{if(typeof e!="string")throw new Error("join.decode input should be string");return e.split(t)}}}function ro(t,e="="){if(typeof e!="string")throw new Error("padding chr should be string");return{encode(r){if(!Array.isArray(r)||r.length&&typeof r[0]!="string")throw new Error("padding.encode input should be array of strings");for(let n of r)if(typeof n!="string")throw new Error(`padding.encode: non-string input=${n}`);for(;r.length*t%8;)r.push(e);return r},decode(r){if(!Array.isArray(r)||r.length&&typeof r[0]!="string")throw new Error("padding.encode input should be array of strings");for(let o of r)if(typeof o!="string")throw new Error(`padding.decode: non-string input=${o}`);let n=r.length;if(n*t%8)throw new Error("Invalid padding: string should have whole number of bytes");for(;n>0&&r[n-1]===e;n--)if(!((n-1)*t%8))throw new Error("Invalid padding: string has too much padding");return r.slice(0,n)}}}function Tt(t,e,r){if(e<2)throw new Error(`convertRadix: wrong from=${e}, base cannot be less than 2`);if(r<2)throw new Error(`convertRadix: wrong to=${r}, base cannot be less than 2`);if(!Array.isArray(t))throw new Error("convertRadix: data should be array");if(!t.length)return[];let n=0,o=[],i=Array.from(t);for(i.forEach(s=>{if(s<0||s>=e)throw new Error(`Wrong integer: ${s}`)});;){let s=0,a=!0;for(let c=n;c<i.length;c++){let l=i[c],d=e*s+l;if(!Number.isSafeInteger(d)||e*s/e!==s||d-l!==e*s)throw new Error("convertRadix: carry overflow");s=d%r;let f=Math.floor(d/r);if(i[c]=f,!Number.isSafeInteger(f)||f*r+s!==d)throw new Error("convertRadix: carry overflow");if(a)f?a=!1:n=c;else continue}if(o.push(s),a)break}for(let s=0;s<t.length-1&&t[s]===0;s++)o.push(0);return o.reverse()}var Ar=(t,e)=>e?Ar(e,t%e):t,Qe=(t,e)=>t+(e-Ar(t,e));function Ht(t,e,r,n){if(!Array.isArray(t))throw new Error("convertRadix2: data should be array");if(e<=0||e>32)throw new Error(`convertRadix2: wrong from=${e}`);if(r<=0||r>32)throw new Error(`convertRadix2: wrong to=${r}`);if(Qe(e,r)>32)throw new Error(`convertRadix2: carry overflow from=${e} to=${r} carryBits=${Qe(e,r)}`);let o=0,i=0,s=2**r-1,a=[];for(let c of t){if(c>=2**e)throw new Error(`convertRadix2: invalid data word=${c} from=${e}`);if(o=o<<e|c,i+e>32)throw new Error(`convertRadix2: carry overflow pos=${i} from=${e}`);for(i+=e;i>=r;i-=r)a.push((o>>i-r&s)>>>0);o&=2**i-1}if(o=o<<r-i&s,!n&&i>=e)throw new Error("Excess padding");if(!n&&o)throw new Error(`Non-zero padding: ${o}`);return n&&i>0&&a.push(o>>>0),a}function Sr(t){return{encode:e=>{if(!Je(e))throw new Error("radix.encode input should be Uint8Array");return Tt(Array.from(e),2**8,t)},decode:e=>{if(!Array.isArray(e)||e.length&&typeof e[0]!="number")throw new Error("radix.decode input should be array of numbers");return Uint8Array.from(Tt(e,t,2**8))}}}function no(t,e=!1){if(t<=0||t>32)throw new Error("radix2: bits should be in (0..32]");if(Qe(8,t)>32||Qe(t,8)>32)throw new Error("radix2: carry overflow");return{encode:r=>{if(!Je(r))throw new Error("radix2.encode input should be Uint8Array");return Ht(Array.from(r),8,t,!e)},decode:r=>{if(!Array.isArray(r)||r.length&&typeof r[0]!="number")throw new Error("radix2.decode input should be array of numbers");return Uint8Array.from(Ht(r,t,8,e))}}}function Ir(t,e){if(typeof e!="function")throw new Error("checksum fn should be function");return{encode(r){if(!Je(r))throw new Error("checksum.encode: input should be Uint8Array");let n=e(r).slice(0,t),o=new Uint8Array(r.length+t);return o.set(r),o.set(n,r.length),o},decode(r){if(!Je(r))throw new Error("checksum.decode: input should be Uint8Array");let n=r.slice(0,-t),o=e(n).slice(0,t),i=r.slice(-t);for(let s=0;s<t;s++)if(o[s]!==i[s])throw new Error("Invalid checksum");return n}}}var Ke={alphabet:Br,chain:Ot,checksum:Ir,convertRadix:Tt,convertRadix2:Ht,radix:Sr,radix2:no,join:kr,padding:ro};var oo=t=>Ot(Sr(58),Br(t),kr("")),io=oo("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");var Lr=t=>Ot(Ir(4,e=>t(t(e))),io);var Fe=M.ProjectivePoint,_t=Lr(ne);function Tr(t){return BigInt(`0x${zt(t)}`)}function so(t){return Pt(t.toString(16).padStart(64,"0"))}var ao=ut("Bitcoin seed"),Ut={private:76066276,public:76067358},Ct=2147483648,co=t=>Er(ne(t)),lo=t=>F(t).getUint32(0,!1),et=t=>{if(!Number.isSafeInteger(t)||t<0||t>2**32-1)throw new Error(`Invalid number=${t}. Should be from 0 to 2 ** 32 - 1`);let e=new Uint8Array(4);return F(e).setUint32(0,t,!1),e},tt=class t{get fingerprint(){if(!this.pubHash)throw new Error("No publicKey set!");return lo(this.pubHash)}get identifier(){return this.pubHash}get pubKeyHash(){return this.pubHash}get privateKey(){return this.privKeyBytes||null}get publicKey(){return this.pubKey||null}get privateExtendedKey(){let e=this.privateKey;if(!e)throw new Error("No private key");return _t.encode(this.serialize(this.versions.private,Ee(new Uint8Array([0]),e)))}get publicExtendedKey(){if(!this.pubKey)throw new Error("No public key");return _t.encode(this.serialize(this.versions.public,this.pubKey))}static fromMasterSeed(e,r=Ut){if(j(e),8*e.length<128||8*e.length>512)throw new Error(`HDKey: wrong seed length=${e.length}. Should be between 128 and 512 bits; 256 bits is advised)`);let n=ee(Be,ao,e);return new t({versions:r,chainCode:n.slice(32),privateKey:n.slice(0,32)})}static fromExtendedKey(e,r=Ut){let n=_t.decode(e),o=F(n),i=o.getUint32(0,!1),s={versions:r,depth:n[4],parentFingerprint:o.getUint32(5,!1),index:o.getUint32(9,!1),chainCode:n.slice(13,45)},a=n.slice(45),c=a[0]===0;if(i!==r[c?"private":"public"])throw new Error("Version mismatch");return c?new t({...s,privateKey:a.slice(1)}):new t({...s,publicKey:a})}static fromJSON(e){return t.fromExtendedKey(e.xpriv)}constructor(e){if(this.depth=0,this.index=0,this.chainCode=null,this.parentFingerprint=0,!e||typeof e!="object")throw new Error("HDKey.constructor must not be called directly");if(this.versions=e.versions||Ut,this.depth=e.depth||0,this.chainCode=e.chainCode||null,this.index=e.index||0,this.parentFingerprint=e.parentFingerprint||0,!this.depth&&(this.parentFingerprint||this.index))throw new Error("HDKey: zero depth with non-zero index/parent fingerprint");if(e.publicKey&&e.privateKey)throw new Error("HDKey: publicKey and privateKey at same time.");if(e.privateKey){if(!M.utils.isValidPrivateKey(e.privateKey))throw new Error("Invalid private key");this.privKey=typeof e.privateKey=="bigint"?e.privateKey:Tr(e.privateKey),this.privKeyBytes=so(this.privKey),this.pubKey=M.getPublicKey(e.privateKey,!0)}else if(e.publicKey)this.pubKey=Fe.fromHex(e.publicKey).toRawBytes(!0);else throw new Error("HDKey: no public or private key provided");this.pubHash=co(this.pubKey)}derive(e){if(!/^[mM]'?/.test(e))throw new Error('Path must start with "m" or "M"');if(/^[mM]'?$/.test(e))return this;let r=e.replace(/^[mM]'?\//,"").split("/"),n=this;for(let o of r){let i=/^(\d+)('?)$/.exec(o),s=i&&i[1];if(!i||i.length!==3||typeof s!="string")throw new Error(`Invalid child index: ${o}`);let a=+s;if(!Number.isSafeInteger(a)||a>=Ct)throw new Error("Invalid index");i[2]==="'"&&(a+=Ct),n=n.deriveChild(a)}return n}deriveChild(e){if(!this.pubKey||!this.chainCode)throw new Error("No publicKey or chainCode set");let r=et(e);if(e>=Ct){let a=this.privateKey;if(!a)throw new Error("Could not derive hardened child key");r=Ee(new Uint8Array([0]),a,r)}else r=Ee(this.pubKey,r);let n=ee(Be,this.chainCode,r),o=Tr(n.slice(0,32)),i=n.slice(32);if(!M.utils.isValidPrivateKey(o))throw new Error("Tweak bigger than curve order");let s={versions:this.versions,chainCode:i,depth:this.depth+1,parentFingerprint:this.fingerprint,index:e};try{if(this.privateKey){let a=R(this.privKey+o,M.CURVE.n);if(!M.utils.isValidPrivateKey(a))throw new Error("The tweak was out of range or the resulted private key is invalid");s.privateKey=a}else{let a=Fe.fromHex(this.pubKey).add(Fe.fromPrivateKey(o));if(a.equals(Fe.ZERO))throw new Error("The tweak was equal to negative P, which made the result key invalid");s.publicKey=a.toRawBytes(!0)}return new t(s)}catch{return this.deriveChild(e+1)}}sign(e){if(!this.privateKey)throw new Error("No privateKey set!");return j(e,32),M.sign(e,this.privKey).toCompactRawBytes()}verify(e,r){if(j(e,32),j(r,64),!this.publicKey)throw new Error("No publicKey set!");let n;try{n=M.Signature.fromCompact(r)}catch{return!1}return M.verify(n,e,this.publicKey)}wipePrivateData(){return this.privKey=void 0,this.privKeyBytes&&(this.privKeyBytes.fill(0),this.privKeyBytes=void 0),this}toJSON(){return{xpriv:this.privateExtendedKey,xpub:this.publicExtendedKey}}serialize(e,r){if(!this.chainCode)throw new Error("No chainCode set");return j(r,33),Ee(et(e),new Uint8Array([this.depth]),et(this.parentFingerprint),et(this.index),this.chainCode,r)}};var fo=t=>t[0]==="\u3042\u3044\u3053\u304F\u3057\u3093";function Hr(t){if(typeof t!="string")throw new TypeError(`Invalid mnemonic type: ${typeof t}`);return t.normalize("NFKD")}function Or(t){let e=Hr(t),r=e.split(" ");if(![12,15,18,21,24].includes(r.length))throw new Error("Invalid mnemonic");return{nfkd:e,words:r}}function _r(t){j(t,16,20,24,28,32)}var uo=t=>{let e=8-t.length/4;return new Uint8Array([ne(t)[0]>>e<<e])};function Ur(t){if(!Array.isArray(t)||t.length!==2048||typeof t[0]!="string")throw new Error("Wordlist: expected array of 2048 strings");return t.forEach(e=>{if(typeof e!="string")throw new Error(`Wordlist: non-string element: ${e}`)}),Ke.chain(Ke.checksum(1,uo),Ke.radix2(11,!0),Ke.alphabet(t))}function Nt(t,e){let{words:r}=Or(t),n=Ur(e).decode(r);return _r(n),n}function Cr(t,e){return _r(t),Ur(e).encode(t).join(fo(e)?"\u3000":" ")}function Nr(t,e){try{Nt(t,e)}catch{return!1}return!0}var ho=t=>Hr(`mnemonic${t}`);function qr(t,e=""){return Me(Be,Or(t).nfkd,ho(e),{c:2048,dkLen:64})}var Kr=`abandon
+ability
+able
+about
+above
+absent
+absorb
+abstract
+absurd
+abuse
+access
+accident
+account
+accuse
+achieve
+acid
+acoustic
+acquire
+across
+act
+action
+actor
+actress
+actual
+adapt
+add
+addict
+address
+adjust
+admit
+adult
+advance
+advice
+aerobic
+affair
+afford
+afraid
+again
+age
+agent
+agree
+ahead
+aim
+air
+airport
+aisle
+alarm
+album
+alcohol
+alert
+alien
+all
+alley
+allow
+almost
+alone
+alpha
+already
+also
+alter
+always
+amateur
+amazing
+among
+amount
+amused
+analyst
+anchor
+ancient
+anger
+angle
+angry
+animal
+ankle
+announce
+annual
+another
+answer
+antenna
+antique
+anxiety
+any
+apart
+apology
+appear
+apple
+approve
+april
+arch
+arctic
+area
+arena
+argue
+arm
+armed
+armor
+army
+around
+arrange
+arrest
+arrive
+arrow
+art
+artefact
+artist
+artwork
+ask
+aspect
+assault
+asset
+assist
+assume
+asthma
+athlete
+atom
+attack
+attend
+attitude
+attract
+auction
+audit
+august
+aunt
+author
+auto
+autumn
+average
+avocado
+avoid
+awake
+aware
+away
+awesome
+awful
+awkward
+axis
+baby
+bachelor
+bacon
+badge
+bag
+balance
+balcony
+ball
+bamboo
+banana
+banner
+bar
+barely
+bargain
+barrel
+base
+basic
+basket
+battle
+beach
+bean
+beauty
+because
+become
+beef
+before
+begin
+behave
+behind
+believe
+below
+belt
+bench
+benefit
+best
+betray
+better
+between
+beyond
+bicycle
+bid
+bike
+bind
+biology
+bird
+birth
+bitter
+black
+blade
+blame
+blanket
+blast
+bleak
+bless
+blind
+blood
+blossom
+blouse
+blue
+blur
+blush
+board
+boat
+body
+boil
+bomb
+bone
+bonus
+book
+boost
+border
+boring
+borrow
+boss
+bottom
+bounce
+box
+boy
+bracket
+brain
+brand
+brass
+brave
+bread
+breeze
+brick
+bridge
+brief
+bright
+bring
+brisk
+broccoli
+broken
+bronze
+broom
+brother
+brown
+brush
+bubble
+buddy
+budget
+buffalo
+build
+bulb
+bulk
+bullet
+bundle
+bunker
+burden
+burger
+burst
+bus
+business
+busy
+butter
+buyer
+buzz
+cabbage
+cabin
+cable
+cactus
+cage
+cake
+call
+calm
+camera
+camp
+can
+canal
+cancel
+candy
+cannon
+canoe
+canvas
+canyon
+capable
+capital
+captain
+car
+carbon
+card
+cargo
+carpet
+carry
+cart
+case
+cash
+casino
+castle
+casual
+cat
+catalog
+catch
+category
+cattle
+caught
+cause
+caution
+cave
+ceiling
+celery
+cement
+census
+century
+cereal
+certain
+chair
+chalk
+champion
+change
+chaos
+chapter
+charge
+chase
+chat
+cheap
+check
+cheese
+chef
+cherry
+chest
+chicken
+chief
+child
+chimney
+choice
+choose
+chronic
+chuckle
+chunk
+churn
+cigar
+cinnamon
+circle
+citizen
+city
+civil
+claim
+clap
+clarify
+claw
+clay
+clean
+clerk
+clever
+click
+client
+cliff
+climb
+clinic
+clip
+clock
+clog
+close
+cloth
+cloud
+clown
+club
+clump
+cluster
+clutch
+coach
+coast
+coconut
+code
+coffee
+coil
+coin
+collect
+color
+column
+combine
+come
+comfort
+comic
+common
+company
+concert
+conduct
+confirm
+congress
+connect
+consider
+control
+convince
+cook
+cool
+copper
+copy
+coral
+core
+corn
+correct
+cost
+cotton
+couch
+country
+couple
+course
+cousin
+cover
+coyote
+crack
+cradle
+craft
+cram
+crane
+crash
+crater
+crawl
+crazy
+cream
+credit
+creek
+crew
+cricket
+crime
+crisp
+critic
+crop
+cross
+crouch
+crowd
+crucial
+cruel
+cruise
+crumble
+crunch
+crush
+cry
+crystal
+cube
+culture
+cup
+cupboard
+curious
+current
+curtain
+curve
+cushion
+custom
+cute
+cycle
+dad
+damage
+damp
+dance
+danger
+daring
+dash
+daughter
+dawn
+day
+deal
+debate
+debris
+decade
+december
+decide
+decline
+decorate
+decrease
+deer
+defense
+define
+defy
+degree
+delay
+deliver
+demand
+demise
+denial
+dentist
+deny
+depart
+depend
+deposit
+depth
+deputy
+derive
+describe
+desert
+design
+desk
+despair
+destroy
+detail
+detect
+develop
+device
+devote
+diagram
+dial
+diamond
+diary
+dice
+diesel
+diet
+differ
+digital
+dignity
+dilemma
+dinner
+dinosaur
+direct
+dirt
+disagree
+discover
+disease
+dish
+dismiss
+disorder
+display
+distance
+divert
+divide
+divorce
+dizzy
+doctor
+document
+dog
+doll
+dolphin
+domain
+donate
+donkey
+donor
+door
+dose
+double
+dove
+draft
+dragon
+drama
+drastic
+draw
+dream
+dress
+drift
+drill
+drink
+drip
+drive
+drop
+drum
+dry
+duck
+dumb
+dune
+during
+dust
+dutch
+duty
+dwarf
+dynamic
+eager
+eagle
+early
+earn
+earth
+easily
+east
+easy
+echo
+ecology
+economy
+edge
+edit
+educate
+effort
+egg
+eight
+either
+elbow
+elder
+electric
+elegant
+element
+elephant
+elevator
+elite
+else
+embark
+embody
+embrace
+emerge
+emotion
+employ
+empower
+empty
+enable
+enact
+end
+endless
+endorse
+enemy
+energy
+enforce
+engage
+engine
+enhance
+enjoy
+enlist
+enough
+enrich
+enroll
+ensure
+enter
+entire
+entry
+envelope
+episode
+equal
+equip
+era
+erase
+erode
+erosion
+error
+erupt
+escape
+essay
+essence
+estate
+eternal
+ethics
+evidence
+evil
+evoke
+evolve
+exact
+example
+excess
+exchange
+excite
+exclude
+excuse
+execute
+exercise
+exhaust
+exhibit
+exile
+exist
+exit
+exotic
+expand
+expect
+expire
+explain
+expose
+express
+extend
+extra
+eye
+eyebrow
+fabric
+face
+faculty
+fade
+faint
+faith
+fall
+false
+fame
+family
+famous
+fan
+fancy
+fantasy
+farm
+fashion
+fat
+fatal
+father
+fatigue
+fault
+favorite
+feature
+february
+federal
+fee
+feed
+feel
+female
+fence
+festival
+fetch
+fever
+few
+fiber
+fiction
+field
+figure
+file
+film
+filter
+final
+find
+fine
+finger
+finish
+fire
+firm
+first
+fiscal
+fish
+fit
+fitness
+fix
+flag
+flame
+flash
+flat
+flavor
+flee
+flight
+flip
+float
+flock
+floor
+flower
+fluid
+flush
+fly
+foam
+focus
+fog
+foil
+fold
+follow
+food
+foot
+force
+forest
+forget
+fork
+fortune
+forum
+forward
+fossil
+foster
+found
+fox
+fragile
+frame
+frequent
+fresh
+friend
+fringe
+frog
+front
+frost
+frown
+frozen
+fruit
+fuel
+fun
+funny
+furnace
+fury
+future
+gadget
+gain
+galaxy
+gallery
+game
+gap
+garage
+garbage
+garden
+garlic
+garment
+gas
+gasp
+gate
+gather
+gauge
+gaze
+general
+genius
+genre
+gentle
+genuine
+gesture
+ghost
+giant
+gift
+giggle
+ginger
+giraffe
+girl
+give
+glad
+glance
+glare
+glass
+glide
+glimpse
+globe
+gloom
+glory
+glove
+glow
+glue
+goat
+goddess
+gold
+good
+goose
+gorilla
+gospel
+gossip
+govern
+gown
+grab
+grace
+grain
+grant
+grape
+grass
+gravity
+great
+green
+grid
+grief
+grit
+grocery
+group
+grow
+grunt
+guard
+guess
+guide
+guilt
+guitar
+gun
+gym
+habit
+hair
+half
+hammer
+hamster
+hand
+happy
+harbor
+hard
+harsh
+harvest
+hat
+have
+hawk
+hazard
+head
+health
+heart
+heavy
+hedgehog
+height
+hello
+helmet
+help
+hen
+hero
+hidden
+high
+hill
+hint
+hip
+hire
+history
+hobby
+hockey
+hold
+hole
+holiday
+hollow
+home
+honey
+hood
+hope
+horn
+horror
+horse
+hospital
+host
+hotel
+hour
+hover
+hub
+huge
+human
+humble
+humor
+hundred
+hungry
+hunt
+hurdle
+hurry
+hurt
+husband
+hybrid
+ice
+icon
+idea
+identify
+idle
+ignore
+ill
+illegal
+illness
+image
+imitate
+immense
+immune
+impact
+impose
+improve
+impulse
+inch
+include
+income
+increase
+index
+indicate
+indoor
+industry
+infant
+inflict
+inform
+inhale
+inherit
+initial
+inject
+injury
+inmate
+inner
+innocent
+input
+inquiry
+insane
+insect
+inside
+inspire
+install
+intact
+interest
+into
+invest
+invite
+involve
+iron
+island
+isolate
+issue
+item
+ivory
+jacket
+jaguar
+jar
+jazz
+jealous
+jeans
+jelly
+jewel
+job
+join
+joke
+journey
+joy
+judge
+juice
+jump
+jungle
+junior
+junk
+just
+kangaroo
+keen
+keep
+ketchup
+key
+kick
+kid
+kidney
+kind
+kingdom
+kiss
+kit
+kitchen
+kite
+kitten
+kiwi
+knee
+knife
+knock
+know
+lab
+label
+labor
+ladder
+lady
+lake
+lamp
+language
+laptop
+large
+later
+latin
+laugh
+laundry
+lava
+law
+lawn
+lawsuit
+layer
+lazy
+leader
+leaf
+learn
+leave
+lecture
+left
+leg
+legal
+legend
+leisure
+lemon
+lend
+length
+lens
+leopard
+lesson
+letter
+level
+liar
+liberty
+library
+license
+life
+lift
+light
+like
+limb
+limit
+link
+lion
+liquid
+list
+little
+live
+lizard
+load
+loan
+lobster
+local
+lock
+logic
+lonely
+long
+loop
+lottery
+loud
+lounge
+love
+loyal
+lucky
+luggage
+lumber
+lunar
+lunch
+luxury
+lyrics
+machine
+mad
+magic
+magnet
+maid
+mail
+main
+major
+make
+mammal
+man
+manage
+mandate
+mango
+mansion
+manual
+maple
+marble
+march
+margin
+marine
+market
+marriage
+mask
+mass
+master
+match
+material
+math
+matrix
+matter
+maximum
+maze
+meadow
+mean
+measure
+meat
+mechanic
+medal
+media
+melody
+melt
+member
+memory
+mention
+menu
+mercy
+merge
+merit
+merry
+mesh
+message
+metal
+method
+middle
+midnight
+milk
+million
+mimic
+mind
+minimum
+minor
+minute
+miracle
+mirror
+misery
+miss
+mistake
+mix
+mixed
+mixture
+mobile
+model
+modify
+mom
+moment
+monitor
+monkey
+monster
+month
+moon
+moral
+more
+morning
+mosquito
+mother
+motion
+motor
+mountain
+mouse
+move
+movie
+much
+muffin
+mule
+multiply
+muscle
+museum
+mushroom
+music
+must
+mutual
+myself
+mystery
+myth
+naive
+name
+napkin
+narrow
+nasty
+nation
+nature
+near
+neck
+need
+negative
+neglect
+neither
+nephew
+nerve
+nest
+net
+network
+neutral
+never
+news
+next
+nice
+night
+noble
+noise
+nominee
+noodle
+normal
+north
+nose
+notable
+note
+nothing
+notice
+novel
+now
+nuclear
+number
+nurse
+nut
+oak
+obey
+object
+oblige
+obscure
+observe
+obtain
+obvious
+occur
+ocean
+october
+odor
+off
+offer
+office
+often
+oil
+okay
+old
+olive
+olympic
+omit
+once
+one
+onion
+online
+only
+open
+opera
+opinion
+oppose
+option
+orange
+orbit
+orchard
+order
+ordinary
+organ
+orient
+original
+orphan
+ostrich
+other
+outdoor
+outer
+output
+outside
+oval
+oven
+over
+own
+owner
+oxygen
+oyster
+ozone
+pact
+paddle
+page
+pair
+palace
+palm
+panda
+panel
+panic
+panther
+paper
+parade
+parent
+park
+parrot
+party
+pass
+patch
+path
+patient
+patrol
+pattern
+pause
+pave
+payment
+peace
+peanut
+pear
+peasant
+pelican
+pen
+penalty
+pencil
+people
+pepper
+perfect
+permit
+person
+pet
+phone
+photo
+phrase
+physical
+piano
+picnic
+picture
+piece
+pig
+pigeon
+pill
+pilot
+pink
+pioneer
+pipe
+pistol
+pitch
+pizza
+place
+planet
+plastic
+plate
+play
+please
+pledge
+pluck
+plug
+plunge
+poem
+poet
+point
+polar
+pole
+police
+pond
+pony
+pool
+popular
+portion
+position
+possible
+post
+potato
+pottery
+poverty
+powder
+power
+practice
+praise
+predict
+prefer
+prepare
+present
+pretty
+prevent
+price
+pride
+primary
+print
+priority
+prison
+private
+prize
+problem
+process
+produce
+profit
+program
+project
+promote
+proof
+property
+prosper
+protect
+proud
+provide
+public
+pudding
+pull
+pulp
+pulse
+pumpkin
+punch
+pupil
+puppy
+purchase
+purity
+purpose
+purse
+push
+put
+puzzle
+pyramid
+quality
+quantum
+quarter
+question
+quick
+quit
+quiz
+quote
+rabbit
+raccoon
+race
+rack
+radar
+radio
+rail
+rain
+raise
+rally
+ramp
+ranch
+random
+range
+rapid
+rare
+rate
+rather
+raven
+raw
+razor
+ready
+real
+reason
+rebel
+rebuild
+recall
+receive
+recipe
+record
+recycle
+reduce
+reflect
+reform
+refuse
+region
+regret
+regular
+reject
+relax
+release
+relief
+rely
+remain
+remember
+remind
+remove
+render
+renew
+rent
+reopen
+repair
+repeat
+replace
+report
+require
+rescue
+resemble
+resist
+resource
+response
+result
+retire
+retreat
+return
+reunion
+reveal
+review
+reward
+rhythm
+rib
+ribbon
+rice
+rich
+ride
+ridge
+rifle
+right
+rigid
+ring
+riot
+ripple
+risk
+ritual
+rival
+river
+road
+roast
+robot
+robust
+rocket
+romance
+roof
+rookie
+room
+rose
+rotate
+rough
+round
+route
+royal
+rubber
+rude
+rug
+rule
+run
+runway
+rural
+sad
+saddle
+sadness
+safe
+sail
+salad
+salmon
+salon
+salt
+salute
+same
+sample
+sand
+satisfy
+satoshi
+sauce
+sausage
+save
+say
+scale
+scan
+scare
+scatter
+scene
+scheme
+school
+science
+scissors
+scorpion
+scout
+scrap
+screen
+script
+scrub
+sea
+search
+season
+seat
+second
+secret
+section
+security
+seed
+seek
+segment
+select
+sell
+seminar
+senior
+sense
+sentence
+series
+service
+session
+settle
+setup
+seven
+shadow
+shaft
+shallow
+share
+shed
+shell
+sheriff
+shield
+shift
+shine
+ship
+shiver
+shock
+shoe
+shoot
+shop
+short
+shoulder
+shove
+shrimp
+shrug
+shuffle
+shy
+sibling
+sick
+side
+siege
+sight
+sign
+silent
+silk
+silly
+silver
+similar
+simple
+since
+sing
+siren
+sister
+situate
+six
+size
+skate
+sketch
+ski
+skill
+skin
+skirt
+skull
+slab
+slam
+sleep
+slender
+slice
+slide
+slight
+slim
+slogan
+slot
+slow
+slush
+small
+smart
+smile
+smoke
+smooth
+snack
+snake
+snap
+sniff
+snow
+soap
+soccer
+social
+sock
+soda
+soft
+solar
+soldier
+solid
+solution
+solve
+someone
+song
+soon
+sorry
+sort
+soul
+sound
+soup
+source
+south
+space
+spare
+spatial
+spawn
+speak
+special
+speed
+spell
+spend
+sphere
+spice
+spider
+spike
+spin
+spirit
+split
+spoil
+sponsor
+spoon
+sport
+spot
+spray
+spread
+spring
+spy
+square
+squeeze
+squirrel
+stable
+stadium
+staff
+stage
+stairs
+stamp
+stand
+start
+state
+stay
+steak
+steel
+stem
+step
+stereo
+stick
+still
+sting
+stock
+stomach
+stone
+stool
+story
+stove
+strategy
+street
+strike
+strong
+struggle
+student
+stuff
+stumble
+style
+subject
+submit
+subway
+success
+such
+sudden
+suffer
+sugar
+suggest
+suit
+summer
+sun
+sunny
+sunset
+super
+supply
+supreme
+sure
+surface
+surge
+surprise
+surround
+survey
+suspect
+sustain
+swallow
+swamp
+swap
+swarm
+swear
+sweet
+swift
+swim
+swing
+switch
+sword
+symbol
+symptom
+syrup
+system
+table
+tackle
+tag
+tail
+talent
+talk
+tank
+tape
+target
+task
+taste
+tattoo
+taxi
+teach
+team
+tell
+ten
+tenant
+tennis
+tent
+term
+test
+text
+thank
+that
+theme
+then
+theory
+there
+they
+thing
+this
+thought
+three
+thrive
+throw
+thumb
+thunder
+ticket
+tide
+tiger
+tilt
+timber
+time
+tiny
+tip
+tired
+tissue
+title
+toast
+tobacco
+today
+toddler
+toe
+together
+toilet
+token
+tomato
+tomorrow
+tone
+tongue
+tonight
+tool
+tooth
+top
+topic
+topple
+torch
+tornado
+tortoise
+toss
+total
+tourist
+toward
+tower
+town
+toy
+track
+trade
+traffic
+tragic
+train
+transfer
+trap
+trash
+travel
+tray
+treat
+tree
+trend
+trial
+tribe
+trick
+trigger
+trim
+trip
+trophy
+trouble
+truck
+true
+truly
+trumpet
+trust
+truth
+try
+tube
+tuition
+tumble
+tuna
+tunnel
+turkey
+turn
+turtle
+twelve
+twenty
+twice
+twin
+twist
+two
+type
+typical
+ugly
+umbrella
+unable
+unaware
+uncle
+uncover
+under
+undo
+unfair
+unfold
+unhappy
+uniform
+unique
+unit
+universe
+unknown
+unlock
+until
+unusual
+unveil
+update
+upgrade
+uphold
+upon
+upper
+upset
+urban
+urge
+usage
+use
+used
+useful
+useless
+usual
+utility
+vacant
+vacuum
+vague
+valid
+valley
+valve
+van
+vanish
+vapor
+various
+vast
+vault
+vehicle
+velvet
+vendor
+venture
+venue
+verb
+verify
+version
+very
+vessel
+veteran
+viable
+vibrant
+vicious
+victory
+video
+view
+village
+vintage
+violin
+virtual
+virus
+visa
+visit
+visual
+vital
+vivid
+vocal
+voice
+void
+volcano
+volume
+vote
+voyage
+wage
+wagon
+wait
+walk
+wall
+walnut
+want
+warfare
+warm
+warrior
+wash
+wasp
+waste
+water
+wave
+way
+wealth
+weapon
+wear
+weasel
+weather
+web
+wedding
+weekend
+weird
+welcome
+west
+wet
+whale
+what
+wheat
+wheel
+when
+where
+whip
+whisper
+wide
+width
+wife
+wild
+will
+win
+window
+wine
+wing
+wink
+winner
+winter
+wire
+wisdom
+wise
+wish
+witness
+wolf
+woman
+wonder
+wood
+wool
+word
+work
+world
+worry
+worth
+wrap
+wreck
+wrestle
+wrist
+write
+wrong
+yard
+year
+yellow
+you
+young
+youth
+zebra
+zero
+zone
+zoo`.split(`
+`);globalThis.WalletLib={keccak_256:Ft,sha3_256:Qt,sha256:ne,sha512:Be,hmac:ee,pbkdf2:Me,secp256k1:M,HDKey:tt,bip39:{mnemonicToSeedSync:qr,validateMnemonic:Nr,mnemonicToEntropy:Nt,entropyToMnemonic:Cr},wordlist:Kr};})();
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const L = window.WalletLib, SP = L.secp256k1.ProjectivePoint, NS = L.secp256k1.CURVE.n;
+const hex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const int = v => Number(v).toLocaleString('en-US');
+const ALPH = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tick = () => new Promise(r => setTimeout(r, 0));
+const sym = c => c === ' ' ? '␣' : c;
+const gcdBig = (a, b) => { a = BigInt(a); b = BigInt(b); while (b) [a, b] = [b, a % b]; return a; };
+
+/* ================= corpus (original prose written for this page) ================= */
+const CORPUS = [
+"The harbour wakes before the town does. Long before the first shop opens its shutters, the fishing boats are already moving out past the breakwater, their engines coughing in the cold air and their lights swinging over the dark water. On the quay, a few men in heavy coats check the ropes and call to one another in short, practical sentences. Nobody wastes words at that hour. The gulls are louder than the people, and they follow the boats out to sea as if they expected to be paid for the company. By the time the sun is fully up, the harbour is quiet again, and the smell of salt and diesel hangs over the empty moorings.",
+"My grandmother baked bread every Friday, and she never used a recipe. She measured flour with a chipped blue cup, added water until the dough felt right, and kneaded it on the kitchen table for a quarter of an hour without stopping. When I asked her how she knew it was ready, she pressed a finger into the dough and watched it spring back slowly. That, she said, was the only test that mattered. The loaves rose under a clean towel near the stove while we drank tea and listened to the radio. In the evening the whole house smelled warm, and the first slice was always given to whoever had been the most patient.",
+"People have tried to hide messages for as long as they have been able to write them. A general might want to send orders that an enemy could not read; a merchant might want to protect the price he intended to offer. The earliest methods were simple. Letters were shifted along the alphabet, swapped according to a table, or written in an order that only the receiver knew. Such tricks worked for a while because few people could read at all. Once more people learned to read and to count, the patterns inside the hidden messages became easier to see, and every clever method was eventually followed by an equally clever way of breaking it.",
+"The train to the mountains leaves at seven and takes almost four hours. For the first part of the journey there is nothing to look at but warehouses, car parks and the backs of houses with washing hanging in their gardens. Then the line follows a river, and the valley narrows until the rock walls seem close enough to touch from the window. Children press their faces against the glass at every tunnel. Near the end the train climbs so slowly that walkers on the path beside the track could keep up with it. The station at the top is small and cold, with a single bench and a clock that has been five minutes fast for years.",
+"Weather forecasts are statements about probability, not promises. When the radio says there is a seventy percent chance of rain, it means that on days with similar conditions it rained on about seven out of ten of them. Many listeners hear only the word rain and decide to stay at home. Others take an umbrella and complain if it stays dry. The forecasters themselves have become very good at their job over the last fifty years, mostly because they have more measurements, faster computers and a better understanding of how air moves over land and sea. A forecast for tomorrow is now about as reliable as a forecast for this afternoon was when my parents were young.",
+"On Saturday the market fills the square from one end to the other. There are stalls with cheese and olives, with honey from the hills, with cheap shoes and expensive sunglasses, and with vegetables that are still dusty from the fields. The traders know their regular customers by name and remember what they bought the week before. A woman who sells tomatoes always gives children a cherry tomato to taste, and most of them make a face and ask for another. By noon the best fruit has gone, the prices begin to fall, and the people who come late know exactly why they waited.",
+"Dear Anna, thank you for your letter, which arrived on Tuesday after what must have been a long journey. I was glad to hear that the new job is going well and that your flat finally has hot water. Here everything is much the same. The garden is full of weeds because it has rained every day for two weeks, and the cat has decided that the best place to sleep is on top of the warm laptop. I am reading a lot in the evenings and trying to learn the guitar, which is harder than I expected. Write again soon and tell me whether you are coming home for the summer. With love, your brother Tom.",
+"The tides are caused mainly by the moon. Its gravity pulls slightly harder on the side of the earth that faces it than on the centre, and slightly less on the far side, so the oceans are stretched into two gentle bulges. As the earth turns, every coast passes through both of them, which is why most places see two high tides and two low tides each day. The sun has a similar but smaller effect. When the sun and the moon line up, at new moon and full moon, their pulls add together and the tides are especially high and low. Sailors and fishermen have known these patterns for thousands of years, long before anyone could explain them.",
+"The library in our town was built more than a century ago with money left by a man who had made his fortune selling soap. It has tall windows, creaking wooden floors and a reading room so quiet that people apologise when they turn a page too loudly. In winter it is one of the warmest places to sit, and students fill every table during the exam season. The librarians are patient with everyone, from small children looking for books about dinosaurs to old men who come every morning to read the newspapers. Some things have changed: there are computers in the corner now, and the catalogue is no longer kept on cards. The smell of old paper is still the same.",
+"To make a simple vegetable soup, start by chopping an onion, two carrots, two sticks of celery and a few potatoes into pieces of roughly the same size. Warm a little oil in a large pot and cook the onion gently until it is soft but not brown. Add the other vegetables, stir them for a minute, and then pour in enough water or stock to cover them. Season with salt and pepper, add a bay leaf if you have one, and let everything simmer for about thirty minutes. Taste it before serving. A handful of fresh herbs or a spoonful of cream at the end will make it feel special, but it is good enough on its own on a cold evening.",
+"Learning a musical instrument teaches patience more than anything else. For weeks the fingers refuse to do what the head tells them, and every simple tune sounds clumsy and slow. Teachers often say that the trick is to practise a little every day rather than a lot once a week. They are right, although it does not feel that way at the beginning. Then, one evening, a piece that seemed impossible suddenly flows without effort, and the player realises that the hard work has been happening quietly all along. That moment is the reward, and it is usually followed immediately by the discovery of a new piece that seems impossible again.",
+"The chess club meets on Thursday evenings in the back room of a cafe near the station. Its members range from a retired engineer who has played for sixty years to a girl of eleven who beats him more often than he likes to admit. Games are played with a clock, and the only sound for long periods is the soft tap of pieces and buttons. Afterwards the players go over their mistakes together, moving the pieces back and forth and arguing politely about what should have happened. Nobody minds losing very much. What they enjoy is the feeling of thinking hard about one problem for an hour, which is rare in ordinary life.",
+"Our team had not won a match since October, so nobody expected much from the game on Sunday. It rained during the first half, the pitch turned to mud, and the other side scored twice before most of us had found our footing. At half time the coach did not shout. He simply told us to keep the ball on the ground and to stop watching it after we had passed it. Something changed. We scored early in the second half, then again from a corner, and in the last minute our goalkeeper made a save that people in the village still talk about. A draw has never felt so much like a victory.",
+"Gardening is a lesson in waiting. Seeds go into the ground in spring, and for days nothing seems to happen at all. Then small green leaves appear, the slugs discover them, and the gardener learns that the real work is protecting what has already started to grow. Watering, weeding and tying up the tallest plants take a few minutes each evening, which is easy to forget when the weather is fine. By late summer the beds are crowded with beans, courgettes and tomatoes, far more than one family can eat. The neighbours receive bags of vegetables whether they want them or not, and nobody complains for long.",
+"Engineers like to say that every design is a compromise. A bridge that is stronger is also heavier, a car that is safer is often more expensive, and a computer program that does everything at once is usually slow and difficult to maintain. The skill lies in deciding which properties matter most for a particular job and accepting weaknesses where they do the least harm. Good engineers write down their assumptions so that someone else can check them later. They also test their work under conditions that are worse than the ones they expect, because the real world has a habit of being less kind than the drawing board.",
+"The river is wide and slow where it passes the old mill, and in summer families come down to swim from the stony beach on the far bank. The water is cold even in August, and most swimmers enter it with a series of small shouts. Further downstream the current becomes stronger, and the council has put up signs warning people not to go beyond the second bridge. Most people listen. In the evening the swimmers leave, the swallows begin to hunt low over the water, and an old man with a fishing rod takes his usual place on the wall, where he has caught almost nothing for twenty years and seems perfectly content.",
+"Winter in the north arrives quickly. One week the trees are still bright with yellow leaves, and the next they are bare and the first snow is lying on the roofs. Days become short, and the sun hangs low over the horizon even at noon. People adapt in practical ways: they buy warmer boots, keep a shovel by the door and learn which roads are cleared first in the morning. They also adapt in less obvious ways, lighting candles in every window and meeting friends more often for long dinners. The cold becomes something to share rather than something to endure, and spring, when it finally comes, almost feels like a disappointment.",
+"The museum had only one room open that afternoon, but it was enough to fill an hour. It contained old instruments for measuring the world: brass telescopes, a heavy compass in a wooden box, maps on which whole coastlines were drawn from guesswork, and a clock that had once kept time on a ship crossing the ocean. A guide explained that sailors could not find their position east or west without knowing the exact time at home, and that building a clock accurate enough to survive months at sea had taken decades of work. Looking at its tiny gears behind the glass, it was easy to believe him.",
+"When the power went out across the whole district, the evening became strangely quiet. The traffic lights went dark, the shop signs disappeared, and people came out of their houses to ask each other what had happened. Somebody said a storm had damaged a line in the valley; somebody else said it was a fault at the station. Nobody really knew. Children were delighted and ran up and down the street with torches. After an hour the lights came back as suddenly as they had gone, the televisions started talking again, and the neighbours went back inside, a little embarrassed at how much they had enjoyed the darkness.",
+"A good map leaves things out. If it showed every tree, every stone and every parked car, it would be as large and as confusing as the land itself. Mapmakers choose what matters for the people who will use the map: roads for drivers, paths and contour lines for walkers, depths and lighthouses for sailors. Everything else is simplified or ignored. The same idea applies to many other tools. A timetable does not describe the train, only when it leaves and arrives. A recipe does not explain chemistry, only what to do and in which order. Leaving the right things out is a skill that takes years to learn.",
+"The first time I tried to cross the city by bicycle, I got lost three times and arrived at the office soaked in sweat and an hour late. My colleagues laughed and offered advice that contradicted itself. Over the following months I found quieter streets, a path along the canal and a short cut through a park that closes at sunset. Now the ride takes twenty-five minutes and is the best part of the day. I see the same faces at the same corners, the baker unloading his van, a man walking three enormous dogs, and a woman who waves at every cyclist as if she knows us all.",
+"Most mistakes in large projects are not technical. They come from people who understood the same sentence in different ways, from a decision that was never written down, or from a problem that everyone noticed and nobody reported because they assumed someone else already had. Teams that work well together tend to ask simple questions early and often, even when the questions sound foolish. They agree on what done means before they begin. They also review each other's work without treating every comment as a personal attack. None of this is difficult to describe, but all of it is surprisingly hard to practise every single day."
+];
+const HELD_OUT = 4;
+const BUILTIN = { train: CORPUS.slice(0, -HELD_OUT).join('\n'), test: CORPUS.slice(-HELD_OUT).join('\n'), name: 'built-in corpus' };
+
+/* ================= toy curve arithmetic (as in HMWK 1) ================= */
+const tmod = (a, p) => { const r = a % p; return r < 0 ? r + p : r; };
+function tinv(a, p) { let t = 0, nt = 1, r = p, nr = tmod(a, p); while (nr) { const q = Math.floor(r / nr); [t, nt] = [nt, t - q * nt]; [r, nr] = [nr, r - q * nr]; } return tmod(t, p); }
+function tadd(P, Q, p) {
+  if (!P) return Q; if (!Q) return P;
+  if (P.x === Q.x && tmod(P.y + Q.y, p) === 0) return null;
+  const l = (P.x === Q.x && P.y === Q.y) ? tmod(3 * P.x * P.x * tinv(2 * P.y, p), p) : tmod((Q.y - P.y) * tinv(Q.x - P.x, p), p);
+  const x3 = tmod(l * l - P.x - Q.x, p);
+  return { x: x3, y: tmod(l * (P.x - x3) - P.y, p) };
+}
+function tmul(k, P, p) { let R = null, A = P; while (k > 0) { if (k & 1) R = tadd(R, A, p); A = tadd(A, A, p); k = Math.floor(k / 2); } return R; }
+
+/* ================= one interface for toy curves and secp256k1 ================= */
+function makeToy(id, p, G, label) {
+  let n = 1, R = G; while (R) { R = tadd(R, G, p); n++; }
+  const N = BigInt(n), all = new Map(); R = null;
+  for (let j = 0; j < n; j++) { all.set(R ? R.x + ',' + R.y : 'O', j); R = tadd(R, G, p); }
+  return { id, kind: 'toy', p, G, O: null, n: N, kMax: N - 1n, rMax: N - 1n, label, all,
+    add: (P, Q) => tadd(P, Q, p), neg: P => P ? { x: P.x, y: tmod(-P.y, p) } : null,
+    mul: (k, P) => tmul(Number(((BigInt(k) % N) + N) % N), P, p),
+    eq: (P, Q) => P === Q || (!!P && !!Q && P.x === Q.x && P.y === Q.y),
+    key: P => P ? P.x + ',' + P.y : 'O', fmt: P => P ? `(${P.x}, ${P.y})` : 'O', isO: P => P === null };
+}
+function makeSecp(id, bits) {
+  return { id, kind: 'secp', bits, G: SP.BASE, O: SP.ZERO, n: NS, kMax: 1n << BigInt(bits), rMax: NS - 1n,
+    label: `secp256k1 with private key k ≤ 2^${bits}`,
+    add: (P, Q) => P.add(Q), neg: P => P.negate(),
+    mul: (k, P) => { k = ((BigInt(k) % NS) + NS) % NS; return k === 0n ? SP.ZERO : P.multiply(k); },
+    eq: (P, Q) => P.equals(Q), isO: P => P.pz === 0n,
+    key: P => P.pz === 0n ? 'O' : hex(P.toRawBytes(true)),
+    fmt: P => { if (P.pz === 0n) return 'O'; const h = hex(P.toRawBytes(true)); return h.slice(0, 8) + '…' + h.slice(-6); } };
+}
+const CURVES = {};
+const curve = id => CURVES[id] || (CURVES[id] = id === 't17' ? makeToy(id, 17, { x: 1, y: 5 }, 'toy curve y² = x³ + 7 mod 17, G = (1, 5)')
+  : id === 't97' ? makeToy(id, 97, { x: 1, y: 28 }, 'toy curve y² = x³ + 7 mod 97, G = (1, 28)')
+  : makeSecp(id, +id.slice(1)));
+function randBig(max) {   // uniform in [1, max]
+  const b = crypto.getRandomValues(new Uint8Array(Math.ceil(max.toString(2).length / 8) + 8));
+  return BigInt('0x' + hex(b)) % max + 1n;
+}
+
+/* message encoding: symbol index m (␣ = 0, A = 1 … Z = 26) → digits in base b → points d·G */
+function encodingFor(C) {
+  const base = C.n >= 27n ? 27 : Number(C.n);
+  let D = 1; while (base ** D < 27) D++;
+  const tab = []; for (let d = 0; d < base; d++) tab.push(C.mul(BigInt(d), C.G));
+  return { base, D, tab, map: new Map(tab.map((P, d) => [C.key(P), d])) };
+}
+const normalizeMsg = s => s.toUpperCase().replace(/[^A-Z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function digitsOf(m, E) { const out = []; for (let j = 0; j < E.D; j++) { out.unshift(m % E.base); m = Math.floor(m / E.base); } return out; }
+
+function eccEncrypt(C, E, Q, text, reuse) {
+  const blocks = []; let cache = null;
+  for (const ch of text) {
+    const m = ALPH.indexOf(ch);
+    for (const d of digitsOf(m, E)) {
+      let r, C1, Sm;
+      if (reuse && cache) ({ r, C1, Sm } = cache);
+      else { r = randBig(C.rMax); C1 = C.mul(r, C.G); Sm = C.mul(r, Q); if (reuse) cache = { r, C1, Sm }; }
+      blocks.push({ ch, m, d, r, C1, Sm, C2: C.add(E.tab[d], Sm) });
+    }
+  }
+  return blocks;
+}
+function assemble(E, digits) {
+  let text = '';
+  for (let i = 0; i < digits.length; i += E.D) {
+    let m = 0, bad = false;
+    for (let j = 0; j < E.D; j++) { const d = digits[i + j]; if (d === undefined) bad = true; m = m * E.base + (d ?? 0); }
+    text += bad || m > 26 ? '?' : ALPH[m];
+  }
+  return text;
+}
+function eccDecrypt(C, E, k, blocks) {
+  const rows = blocks.map(b => { const S = C.mul(k, b.C1), M = C.add(b.C2, C.neg(S)); return { S, M, d: E.map.get(C.key(M)) }; });
+  return { rows, text: assemble(E, rows.map(r => r.d)) };
+}
+
+/* ================= Caesar ================= */
+const caesar = (t, s) => t.replace(/[A-Za-z]/g, c => { const b = c <= 'Z' ? 65 : 97; return String.fromCharCode(((c.charCodeAt(0) - b + s) % 26 + 26) % 26 + b); });
+
+/* ================= language model & attack ================= */
+let MODEL = null, CORP = BUILTIN;
+function lettersOf(t) { const out = []; for (const c of t.toUpperCase()) { const v = c.charCodeAt(0) - 65; if (v >= 0 && v < 26) out.push(v); } return Uint8Array.from(out); }
+function buildModel(train) {
+  const lt = lettersOf(train), N = lt.length, cnt = new Float64Array(26), big = new Float64Array(676), row = new Float64Array(26);
+  for (let i = 0; i < N; i++) { cnt[lt[i]]++; if (i + 1 < N) { big[lt[i] * 26 + lt[i + 1]]++; row[lt[i]]++; } }
+  const p1 = Array.from(cnt, c => (c + .5) / (N + 13)), lp1 = p1.map(Math.log);
+  const lp2 = new Float64Array(676); for (let a = 0; a < 26; a++) for (let b = 0; b < 26; b++) lp2[a * 26 + b] = Math.log((big[a * 26 + b] + .5) / (row[a] + 13));
+  const vocab = new Set((train.toLowerCase().match(/[a-z]+/g) || []));
+  return { N, cnt, p1, lp1, lp2, vocab };
+}
+function attack(text, M) {
+  const lt = lettersOf(text), N = lt.length, cnt = new Float64Array(26);
+  for (const v of lt) cnt[v]++;
+  const words = (text.match(/[A-Za-z]+/g) || []).map(w => lettersOf(w));
+  const res = [];
+  for (let s = 0; s < 26; s++) {
+    let chi = 0;
+    for (let x = 0; x < 26; x++) { const o = cnt[(x + s) % 26], e = N * M.p1[x]; chi += (o - e) * (o - e) / e; }
+    let bi = 0; for (let i = 0; i + 1 < N; i++) bi += M.lp2[((lt[i] - s + 26) % 26) * 26 + (lt[i + 1] - s + 26) % 26];
+    let uni = 0; for (let x = 0; x < 26; x++) uni += cnt[(x + s) % 26] * M.lp1[x];
+    let found = 0; for (const w of words) { let str = ''; for (const v of w) str += String.fromCharCode(97 + (v - s + 26) % 26); if (M.vocab.has(str)) found += w.length; }
+    res.push({ s, chi, bi: N > 1 ? bi / (N - 1) : uni, uni, dict: N ? found / N : 0 });
+  }
+  let top = 0; for (let x = 1; x < 26; x++) if (cnt[x] > cnt[top]) top = x;
+  const arg = (f, better) => res.reduce((a, b) => better(f(b), f(a)) ? b : a).s;
+  const best = {
+    topE: (top - 4 + 26) % 26,
+    chi: arg(r => r.chi, (x, y) => x < y),
+    bi: arg(r => r.bi, (x, y) => x > y),
+    dict: res.reduce((a, b) => (b.dict > a.dict || (b.dict === a.dict && b.uni > a.uni)) ? b : a).s
+  };
+  return { res, best, N, cnt };
+}
+const METHODS = [
+  { id: 'topE', name: 'Top letter = E', cls: 'c1', mk: 'circle' },
+  { id: 'chi', name: 'χ² letter frequencies', cls: 'c2', mk: 'square' },
+  { id: 'bi', name: 'Bigram score', cls: 'c3', mk: 'diamond' },
+  { id: 'dict', name: 'Dictionary words', cls: 'c4', mk: 'triangle' }
+];
+
+/* ================= svg & tooltip helpers ================= */
+const NSV = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) { const e = document.createElementNS(NSV, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); if (parent) parent.appendChild(e); return e; }
+const tip = $('tip');
+function showTip(ev, strong, lines) {
+  tip.textContent = ''; const s = document.createElement('strong'); s.textContent = strong; tip.appendChild(s);
+  for (const l of lines) { const d = document.createElement('div'); if (Array.isArray(l)) { const k = document.createElement('span'); k.className = 'k ' + l[0]; d.appendChild(k); d.appendChild(document.createTextNode(l[1])); } else d.textContent = l; tip.appendChild(d); }
+  tip.hidden = false; const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14; if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = Math.max(4, x) + 'px'; tip.style.top = Math.max(4, y) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+function niceTicks(lo, hi, count = 4) {
+  const span = hi - lo; if (span <= 0) return [lo];
+  const raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10)); return out;
+}
+function svgBox(wrap, h) { wrap.textContent = ''; const w = Math.max(240, wrap.clientWidth); return { s: el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, role: 'img' }, wrap), w, h }; }
+function bars(wrap, cfg) {
+  const { s, w, h } = svgBox(wrap, cfg.h || 180), m = { l: 40, r: 8, t: 10, b: 30 };
+  const vals = cfg.vals, n = vals.length, yMax = (cfg.yMax ?? Math.max(...vals, ...(cfg.exp || [0]))) * 1.1 || 1;
+  const Y = v => h - m.b - v / yMax * (h - m.t - m.b);
+  for (const t of niceTicks(0, yMax)) { el('line', { x1: m.l, x2: w - m.r, y1: Y(t), y2: Y(t), class: 'g-hair' }, s); const tx = el('text', { x: m.l - 6, y: Y(t) + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); tx.textContent = cfg.yfmt ? cfg.yfmt(t) : t; }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  const slot = (w - m.l - m.r) / n, bw = Math.max(1, Math.min(24, slot - (slot > 5 ? 2 : .3)));
+  const every = Math.max(cfg.every || 1, Math.ceil((cfg.labelW || 11) / slot));
+  for (let i = 0; i < n; i++) {
+    const x = m.l + i * slot + (slot - bw) / 2;
+    if (vals[i] > 0) el('rect', { x, y: Y(vals[i]), width: bw, height: Y(0) - Y(vals[i]), class: cfg.hi === i ? 'f-hot' : cfg.cls }, s);
+    if (cfg.exp && cfg.exp[i] > 0) el('line', { x1: x - 1, x2: x + bw + 1, y1: Y(cfg.exp[i]), y2: Y(cfg.exp[i]), class: 'b-exp' }, s);
+    if (i % every === 0 && cfg.labels) { const t = el('text', { x: x + bw / 2, y: h - m.b + 14, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = cfg.labels[i]; }
+    const hit = el('rect', { x: m.l + i * slot, y: m.t, width: slot, height: h - m.t - m.b, class: 'b-hit' }, s);
+    hit.addEventListener('pointermove', ev => showTip(ev, cfg.tipv(i), cfg.tipl ? cfg.tipl(i) : []));
+    hit.addEventListener('pointerleave', hideTip);
+  }
+  if (cfg.xlabel) { const xl = el('text', { x: w - m.r, y: h - 2, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = cfg.xlabel; }
+}
+function marker(s, shape, x, y, cls) {
+  const r = 4.5;
+  if (shape === 'circle') return el('circle', { cx: x, cy: y, r, class: cls + ' mk' }, s);
+  if (shape === 'square') return el('rect', { x: x - r, y: y - r, width: 2 * r, height: 2 * r, class: cls + ' mk' }, s);
+  if (shape === 'diamond') return el('path', { d: `M${x},${y - r - 1} L${x + r + 1},${y} L${x},${y + r + 1} L${x - r - 1},${y}Z`, class: cls + ' mk' }, s);
+  return el('path', { d: `M${x},${y - r - 1} L${x + r + 1},${y + r} L${x - r - 1},${y + r}Z`, class: cls + ' mk' }, s);
+}
+
+/* ================= §1 + §2 rendering ================= */
+const ST = { C: null, E: null, k: 6n, Q: null, msg: '', blocks: [], dec: null, shift: 3 };
+function parseK(C) {
+  const raw = $('kIn').value.trim(); let k;
+  try { k = BigInt(raw); } catch { return { err: 'The private key must be a whole number.' }; }
+  if (k < 1n || k > C.kMax) return { err: `Private key outside the allowed range 1 … ${int(C.kMax)}.` };
+  return { k };
+}
+function renderECC(newRandomness) {
+  const C = curve($('curveSel').value);
+  const pk = parseK(C), st = $('eccStatus');
+  if (pk.err) { st.className = 'status bad'; st.textContent = pk.err; return false; }
+  st.className = 'status'; st.textContent = '';
+  const E = encodingFor(C); ST.C = C; ST.E = E;
+  ST.k = pk.k; ST.Q = C.mul(ST.k, C.G);
+  ST.msg = normalizeMsg($('msgIn').value) || 'HELLO';
+  $('tbMsg').textContent = ST.msg.length > 34 ? ST.msg.slice(0, 32) + '…' : ST.msg;
+  $('tbRange').textContent = `k ∈ [1, ${C.kind === 'toy' ? C.kMax : '2^' + C.bits}]`;
+  if (newRandomness !== false || !ST.blocks.length || ST.blocks._for !== ST.msg + C.id + ST.k) {
+    ST.blocks = eccEncrypt(C, E, ST.Q, ST.msg, false); ST.blocks._for = ST.msg + C.id + ST.k;
+  }
+  ST.dec = eccDecrypt(C, E, ST.k, ST.blocks);
+  // 01 keys
+  const range = C.kind === 'toy' ? `1 … ${C.kMax} (n = ${C.n}, the order of G)` : `1 … 2^${C.bits} = ${int(C.kMax)}`;
+  $('vKeys').innerHTML = `<span class="pre">curve      </span>${esc(C.label)}<br><span class="pre">private k  </span><span class="em">${ST.k}</span>  <span class="pre">range ${range}</span><br><span class="pre">public Q   </span>${C.kind === 'toy' ? C.fmt(ST.Q) : hex(ST.Q.toRawBytes(true))}`;
+  // 02 encoding
+  $('nEnc').innerHTML = E.D === 1
+    ? `Each symbol (␣ = 0, A = 1, …, Z = 26) becomes the point M = m·G. The table is public; the receiver reads m back by looking M up among these ${E.base} points.`
+    : `G generates only ${E.base} points here, fewer than the 27 symbols, so each symbol m is written as ${E.D} digits in base ${E.base} and each digit d becomes the point d·G. Example: Z = 26 = ${digitsOf(26, E).join('·' + E.base + ' + ')}.`;
+  const used = new Set([...ST.msg]);
+  $('vEnc').innerHTML = (E.D === 1 ? [...ALPH].map((c, m) => [c, m, C.fmt(E.tab[m])]) : [...ALPH].map((c, m) => [c, m, digitsOf(m, E).map(d => C.fmt(E.tab[d])).join(' ')]))
+    .filter(([c]) => E.D > 1 || used.has(c) || C.kind === 'toy')
+    .map(([c, m, pt]) => `<span class="chip"${used.has(c) ? ' style="border-color:var(--ink)"' : ''}><b>${sym(c)} = ${m}</b><i>${esc(pt)}</i></span>`).join('');
+  // 03 encryption table
+  const show = ST.blocks.slice(0, 10);
+  $('vEncT').innerHTML = show.map((b, i) => `<tr><td>${i + 1}</td><td>${sym(b.ch)}</td><td>${E.D === 1 ? 'm = ' + b.m : `m = ${b.m} = ${digitsOf(b.m, E).join('·' + E.base + ' + ')} → d = ${b.d}`}</td><td class="nw">${C.kind === 'toy' ? b.r : String(b.r).slice(0, 8) + '…'}</td><td class="nw">${C.fmt(b.C1)}</td><td class="nw">${C.fmt(b.C2)}</td></tr>`).join('')
+    + (ST.blocks.length > 10 ? `<tr><td colspan="6" style="color:var(--ink-3)">… ${ST.blocks.length - 10} more blocks</td></tr>` : '');
+  // 04 ciphertext
+  const ser = ST.blocks.map(b => C.kind === 'toy' ? `[${C.fmt(b.C1)} ${C.fmt(b.C2)}]` : `[${hex(b.C1.toRawBytes(true))} ${hex(b.C2.toRawBytes(true))}]`);
+  $('vCt').textContent = ser.slice(0, C.kind === 'toy' ? 40 : 3).join(' ') + (ser.length > (C.kind === 'toy' ? 40 : 3) ? ' …' : '');
+  const zero = ST.blocks.filter(b => C.isO(b.Sm)).length, masks = new Set(ST.blocks.map(b => C.key(b.Sm))).size;
+  $('nCt').innerHTML = esc(`${ST.blocks.length} blocks for ${ST.msg.length} symbols, each block two points` + (C.kind === 'secp' ? ` (2 × 33 bytes compressed, ${int(ST.blocks.length * 66)} bytes in total for a ${ST.msg.length}-character message).` : '.') + ' Equal letters get different blocks because every r is new.')
+    + (zero ? ` <b style="color:var(--hot)">Flaw of this toy setting:</b> ${zero} of the ${ST.blocks.length} masks r·Q are O, so those C<sub>2</sub> are the plaintext points themselves. Here n = ${C.n} and k = ${ST.k} share a factor, so r·Q = (r·k mod ${C.n})·G takes only ${C.n / gcdBig(ST.k, C.n)} different values.` : '');
+  // 05 decryption
+  $('vDecT').innerHTML = ST.dec.rows.slice(0, 10).map((r, i) => `<tr><td>${i + 1}</td><td class="nw">${C.fmt(r.S)}</td><td class="nw">${C.fmt(r.M)}</td><td>${r.d ?? '?'}</td><td>${E.D === 1 ? sym(ALPH[r.d] ?? '?') : (i + 1) % E.D === 0 ? sym(ST.dec.text[(i + 1) / E.D - 1] ?? '?') : '·'}</td></tr>`).join('');
+  $('vDec').textContent = ST.dec.text;
+  const ok = ST.dec.text === ST.msg;
+  $('vDecChk').className = 'check ' + (ok ? 'ok' : 'bad');
+  $('vDecChk').textContent = ok ? '✓ Decryption returns the original message.' : '✗ Decryption does not match.';
+  $('duelEcc').textContent = `${ST.blocks.length} point pairs`;
+  $('duelEccCt').textContent = ser.slice(0, C.kind === 'toy' ? 4 : 1).join(' ') + ' …';
+  return true;
+}
+function renderCaesar() {
+  const s = ST.shift, msg = ST.msg, ct = caesar(msg, s);
+  const used = new Set(msg.replace(/ /g, ''));
+  $('wheel').innerHTML = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(c => `<span class="${used.has(c) ? 'used' : ''}">${c}<i>${caesar(c, s)}</i></span>`).join('');
+  $('cPlain').innerHTML = `<span class="pre">plaintext  </span>${esc(msg)}<br><span class="pre">key        </span>s = ${s}`;
+  $('cCipher').textContent = ct;
+  $('cDec').textContent = caesar(ct, -s);
+  $('cChk').className = 'check ok'; $('cChk').textContent = `✓ Shifting back by ${s} returns the original message.`;
+  $('duelCaesar').textContent = ct; $('duelCaesarCt').textContent = `shift s = ${s}`;
+  if (!$('atkIn').dataset.custom) { $('atkIn').value = ct; runAttackTool(); }
+}
+
+/* ================= §3 comparison ================= */
+function renderCompare() {
+  const C = ST.C, E = ST.E;
+  const ks = C.kind === 'toy' ? `${C.kMax} private keys (k = 1 … ${C.kMax}); real secp256k1: n − 1 ≈ 2²⁵⁶` : `2^${C.bits} = ${int(C.kMax)} private keys here; real secp256k1: n − 1 ≈ 2²⁵⁶`;
+  const rows = [
+    ['Type', 'Public-key (asymmetric): different keys to encrypt and decrypt', 'Symmetric: the same secret s encrypts and decrypts'],
+    ['Keys', 'Key pair (k, Q = k·G) plus a fresh ephemeral r per block', 'One shared number s'],
+    ['Key agreement', 'None needed: anyone may use the public key Q', 'Both sides must agree on s secretly beforehand'],
+    ['Encryption', 'C₁ = r·G, C₂ = M + r·Q (point additions and scalar multiplications)', 'c = (x + s) mod 26, letter by letter'],
+    ['Decryption', 'M = C₂ − k·C₁, then look M up in the encoding table', 'x = (c − s) mod 26'],
+    ['Key space', ks, '26 shifts (25 non-trivial)'],
+    ['Same plaintext twice', 'Different ciphertext each time (randomised)', 'Same ciphertext every time (deterministic)'],
+    ['Ciphertext size', `Two points per block; ${E.D} block${E.D > 1 ? 's' : ''} per symbol`, 'Same length as the plaintext'],
+    ['Letter statistics', 'Hidden: the mask r·Q is uniform over the group', 'Preserved: the distribution is only moved by s'],
+    ['Security rests on', 'The discrete-log / Diffie–Hellman problem being hard, which needs a large key space', 'Nothing: 26 keys and visible statistics'],
+    ['Shared trait', 'Additive and malleable: C₂ + G decrypts to the next symbol (§5)', 'Additive: shifting the ciphertext by t gives a valid encryption of the shifted plaintext']
+  ];
+  $('cmpT').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td class="wrap">${esc(r[1])}</td><td class="wrap">${esc(r[2])}</td></tr>`).join('');
+
+  // longer passage statistics
+  const passage = normalizeMsg(CORP.test).slice(0, C.kind === 'toy' ? 2400 : 260);
+  const pk = C.id + '|' + ST.k + '|' + passage.length + '|' + CORP.name;
+  if (ST.passKey !== pk) { ST.passBlocks = eccEncrypt(C, E, ST.Q, passage, false); ST.passKey = pk; }
+  const blocks = ST.passBlocks;
+  const plainL = lettersOf(passage), caesarL = lettersOf(caesar(passage, ST.shift));
+  const hist = lt => { const h = new Array(26).fill(0); for (const v of lt) h[v]++; return h; };
+  const hp = hist(plainL), hc = hist(caesarL);
+  const AZ = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  const ymax = Math.max(...hp);
+  bars($('chPlain'), { vals: hp, labels: AZ, cls: 'f-plain', yMax: ymax, every: 1, tipv: i => `${AZ[i]}: ${hp[i]}`, h: 170 });
+  bars($('chCaesar'), { vals: hc, labels: AZ, cls: 'f-sha', yMax: ymax, every: 1, tipv: i => `${AZ[i]}: ${hc[i]}`, tipl: i => [`plaintext letter ${AZ[(i - ST.shift + 26) % 26]}`], h: 170 });
+  $('chCaesarH').textContent = `Caesar ciphertext letters (s = ${ST.shift})`;
+  let eccVals, eccLabels, eccA, eccTitle, eccTip;
+  if (C.kind === 'toy') {
+    const n = Number(C.n); eccVals = new Array(n).fill(0);
+    for (const b of blocks) eccVals[C.all.get(C.key(b.C2))]++;
+    eccLabels = eccVals.map((_, j) => j + 'G'); eccA = n; eccTitle = `Toy ECC: which of the ${n} points C₂ is`;
+    eccTip = i => `${i}·G: ${eccVals[i]} times`;
+  } else {
+    eccVals = new Array(26).fill(0); for (const b of blocks) eccVals[Number(b.C2.toAffine().x % 26n)]++;
+    eccLabels = eccVals.map((_, j) => String(j)); eccA = 26; eccTitle = 'ECC on secp256k1: x(C₂) mod 26';
+    eccTip = i => `x(C₂) mod 26 = ${i}: ${eccVals[i]} times`;
+  }
+  $('chEccH').textContent = eccTitle;
+  bars($('chEcc'), { vals: eccVals, labels: eccLabels, cls: 'f-ec', exp: eccVals.map(() => blocks.length / eccA), tipv: eccTip, h: 170, every: eccA > 30 ? 10 : 1, labelW: eccA > 30 ? 28 : 16 });
+  $('statNote').textContent = `The first ${int(passage.length)} characters (${int(plainL.length)} letters) of the held-out test text, encrypted with the current Caesar key s = ${ST.shift} and with the current ECC key (${blocks.length} blocks). Plaintext and Caesar charts share one scale.`;
+  // measures
+  const ic = (vals, A) => { let N = 0, s = 0; for (const f of vals) { N += f; s += f * (f - 1); } return N > 1 ? s / (N * (N - 1)) * A : NaN; };
+  const ent = vals => { const N = vals.reduce((a, b) => a + b, 0); let H = 0; for (const f of vals) if (f) H -= f / N * Math.log2(f / N); return H; };
+  const keyOf = b => C.key(b.C2);
+  const det = (pairs) => { const first = new Map(); let rep = 0, same = 0; for (const [p, c] of pairs) { if (first.has(p)) { rep++; if (first.get(p) === c) same++; } else first.set(p, c); } return rep ? same / rep : NaN; };
+  const caesarPairs = [...passage].filter(c => c !== ' ').map(c => [c, caesar(c, ST.shift)]);
+  const eccPairs = E.D === 1 ? blocks.map(b => [b.ch, keyOf(b)]) : [];
+  const distinctC2 = new Set(blocks.map(keyOf)).size;
+  const eIc = C.kind === 'toy' ? ic(eccVals, eccA).toFixed(2) : `${distinctC2} distinct of ${blocks.length}`;
+  const rowsS = [
+    ['Index of coincidence × alphabet size', ic(hp, 26).toFixed(2), ic(hc, 26).toFixed(2), eIc, '≈ 1.73 for English letters, 1.00 for a flat distribution. Caesar keeps the value exactly.'],
+    ['Entropy of the distribution (bits)', ent(hp).toFixed(2), ent(hc).toFixed(2), ent(eccVals).toFixed(2) + ` / max ${Math.log2(eccA).toFixed(2)}`, 'Caesar only relabels letters, so the entropy cannot change. The ECC column is close to its maximum.'],
+    ['Same plaintext symbol → same ciphertext?', '—', (100 * det(caesarPairs)).toFixed(0) + '% of repeats', E.D === 1 ? (100 * det(eccPairs)).toFixed(1) + '% of repeats' : 'n/a (digit blocks)', 'Deterministic vs randomised encryption.'],
+    ['Most frequent symbol', AZ[hp.indexOf(Math.max(...hp))], AZ[hc.indexOf(Math.max(...hc))], C.kind === 'toy' ? eccLabels[eccVals.indexOf(Math.max(...eccVals))] + ` (${Math.max(...eccVals)}×)` : '—', 'In Caesar the commonest letter is just E moved by s.']
+  ];
+  $('statT').innerHTML = rowsS.map(r => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="wrap">${r[4]}</td></tr>`).join('');
+  $('fStat').innerHTML = [
+    `<b>Caesar:</b> the ciphertext histogram is the plaintext histogram moved ${ST.shift} place${ST.shift === 1 ? '' : 's'} to the right (with wrap-around). Peak, valleys, index of coincidence and entropy are all unchanged: this is exactly what §4 exploits.`,
+    (() => { const g = C.kind === 'toy' ? gcdBig(ST.k, C.n) : 1n;
+      return g > 1n
+        ? `<b>Toy ECC with k = ${ST.k}:</b> the points are <i>not</i> spread evenly. Because k and n = ${C.n} share the factor ${g}, the mask r·Q = (r·k mod ${C.n})·G can only be ${C.n / g} of the ${C.n} points, and every r that is a multiple of ${C.n / g} (${g - 1n} of the ${C.n - 1n} possible values) leaves the block unmasked. The plaintext digits leak through those blocks. Choose a key coprime to ${C.n} (for example k = 4) and the histogram flattens; a prime group order, as on the mod-97 curve and on secp256k1, rules the problem out.`
+        : `<b>Toy ECC:</b> the ciphertext points are spread evenly, because each block adds a fresh random mask r·Q drawn uniformly from the group. Nothing about English survives, so frequency analysis has nothing to work with.`; })(),
+    `<b>Key spaces:</b> Caesar has 26 keys, the toy ECC scheme ${C.kind === 'toy' ? C.kMax : '2^' + C.bits}. Both are small enough to search; §4 and §5 show that the reasons each one breaks are different.`
+  ].map(s => `<li>${s}</li>`).join('');
+}
+
+/* ================= §4 corpus, attack tool, experiment ================= */
+function setCorpus(c) {
+  CORP = c; MODEL = buildModel(c.train);
+  const AZ = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  $('corpusInfo').textContent = `${c.name}: ${int(MODEL.N)} training letters, ${int(MODEL.vocab.size)} distinct words; ${int(lettersOf(c.test).length)} letters held out for testing.`;
+  bars($('chCorpus'), { vals: MODEL.p1.map(v => v * 100), labels: AZ, cls: 'f-plain', every: 1, yfmt: t => t + '%', tipv: i => `${AZ[i]}: ${(MODEL.p1[i] * 100).toFixed(2)}%`, h: 180 });
+}
+function runAttackTool() {
+  if (!MODEL) return;
+  const text = $('atkIn').value, A = attack(text, MODEL);
+  const AZ = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  const truth = $('atkIn').dataset.truth !== undefined ? +$('atkIn').dataset.truth : null;
+  $('atkTiles').innerHTML = METHODS.map(m => {
+    const s = A.best[m.id], ok = truth === null ? '' : s === truth ? ' ✓' : ' ✗';
+    return `<div class="stat"><span class="v">s = ${s}${ok}</span><span class="s"><span class="${m.cls}" style="display:inline-block;width:10px;height:10px;margin-right:6px;background:currentColor"></span>${m.name}: “${esc(caesar(text, -s).slice(0, 26))}${text.length > 26 ? '…' : ''}”</span></div>`;
+  }).join('') + `<div class="stat"><span class="v">${A.N}</span><span class="s">letters in the ciphertext${truth !== null ? `; true key s = ${truth}` : ''}</span></div>`;
+  const bi = A.res.map(r => r.bi), minB = Math.min(...bi);
+  bars($('chAtk'), { vals: bi.map(v => v - minB + .05), labels: A.res.map(r => String(r.s)), cls: 'f-ec', hi: A.best.bi, every: 1, yfmt: () => '', tipv: i => `shift ${i}: ${bi[i].toFixed(2)}`, tipl: i => [`“${caesar(text, -i).slice(0, 30)}”`], h: 170, xlabel: 'shift s' });
+  const sChi = A.best.chi;
+  bars($('chFit'), { vals: Array.from(A.cnt), labels: AZ, cls: 'f-sha', exp: AZ.map((_, i) => A.N * MODEL.p1[(i - sChi + 26) % 26]), every: 1, tipv: i => `${AZ[i]}: ${A.cnt[i]}`, tipl: i => [`expected ${(A.N * MODEL.p1[(i - sChi + 26) % 26]).toFixed(1)} if s = ${sChi}`], h: 170 });
+  const bestChi = A.best.chi, bestBi = A.best.bi, bestD = A.best.dict;
+  $('atkT').innerHTML = A.res.map(r => `<tr${r.s === bestChi ? ' class="best"' : ''}><td class="num">${r.s}</td><td>${esc(caesar(text, -r.s).slice(0, 60))}</td><td class="num${r.s === bestChi ? ' win' : ''}">${r.chi.toFixed(1)}</td><td class="num${r.s === bestBi ? ' win' : ''}">${r.bi.toFixed(2)}</td><td class="num${r.s === bestD ? ' win' : ''}">${(100 * r.dict).toFixed(0)}%</td></tr>`).join('');
+}
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function sample(test, L, rnd) {
+  const pos = []; for (let i = 0; i < test.length; i++) if (/[A-Za-z]/.test(test[i])) pos.push(i);
+  const st = Math.floor(rnd() * (pos.length - L));
+  return test.slice(pos[st], pos[st + L - 1] + 1);
+}
+const LENGTHS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 75, 100];
+let EXP = null;
+async function runExperiment(seed) {
+  const T = 200, rnd = mulberry32(seed), out = METHODS.map(() => new Array(LENGTHS.length).fill(0));
+  $('expStatus').textContent = 'running…'; await tick();
+  const t0 = performance.now();
+  const pos = []; for (let i = 0; i < CORP.test.length; i++) if (/[A-Za-z]/.test(CORP.test[i])) pos.push(i);
+  for (let li = 0; li < LENGTHS.length; li++) {
+    const Lg = LENGTHS[li];
+    for (let t = 0; t < T; t++) {
+      const st = Math.floor(rnd() * (pos.length - Lg)), sub = CORP.test.slice(pos[st], pos[st + Lg - 1] + 1);
+      const s = 1 + Math.floor(rnd() * 25), A = attack(caesar(sub, s), MODEL);
+      METHODS.forEach((m, mi) => { if (A.best[m.id] === s) out[mi][li]++; });
+    }
+    if (li % 4 === 3) await tick();
+  }
+  EXP = { T, out: out.map(a => a.map(v => v / T)) };
+  drawExperiment();
+  $('expStatus').textContent = `${int(T * LENGTHS.length)} ciphertexts per method · ${Math.round(performance.now() - t0)} ms`;
+}
+function drawExperiment() {
+  if (!EXP) return;
+  const wrap = $('chExp'), { s, w, h } = svgBox(wrap, 280), m = { l: 46, r: 16, t: 14, b: 36 };
+  const n = LENGTHS.length, X = i => m.l + i / (n - 1) * (w - m.l - m.r), Y = v => h - m.b - v * (h - m.t - m.b);
+  for (const t of [0, .25, .5, .75, 1]) { el('line', { x1: m.l, x2: w - m.r, y1: Y(t), y2: Y(t), class: 'g-hair' }, s); const tx = el('text', { x: m.l - 6, y: Y(t) + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); tx.textContent = t * 100 + '%'; }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  LENGTHS.forEach((Lg, i) => { if (w < 520 && i % 2) return; const t = el('text', { x: X(i), y: h - m.b + 15, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = Lg; });
+  const xl = el('text', { x: w - m.r, y: h - 3, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = 'ciphertext length (letters)';
+  const chance = Y(1 / 25); el('line', { x1: m.l, x2: w - m.r, y1: chance, y2: chance, class: 'g-ref' }, s);
+  const ct = el('text', { x: w - m.r, y: chance - 4, 'text-anchor': 'end', class: 'g-t' }, s); ct.textContent = 'random guess 4%';
+  METHODS.forEach((me, mi) => {
+    el('path', { d: EXP.out[mi].map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(''), class: 'ln ' + me.cls }, s);
+    EXP.out[mi].forEach((v, i) => marker(s, me.mk, X(i), Y(v), me.cls));
+  });
+  const cross = el('line', { x1: 0, x2: 0, y1: m.t, y2: h - m.b, class: 'g-cross', visibility: 'hidden' }, s);
+  const hit = el('rect', { x: m.l - 10, y: m.t, width: w - m.l - m.r + 20, height: h - m.t - m.b, fill: 'transparent' }, s);
+  hit.addEventListener('pointermove', ev => {
+    const r = s.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round((ev.clientX - r.left - m.l) / (w - m.l - m.r) * (n - 1))));
+    cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('visibility', 'visible');
+    showTip(ev, `${LENGTHS[i]} letter${LENGTHS[i] > 1 ? 's' : ''}`, METHODS.map((me, mi) => [me.cls, `${(EXP.out[mi][i] * 100).toFixed(0)}%  ${me.name}`]));
+  });
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); hideTip(); });
+  $('expLegend').innerHTML = METHODS.map(me => `<span class="${me.cls}"><svg width="22" height="12" aria-hidden="true"><line x1="0" y1="6" x2="22" y2="6" class="ln ${me.cls}"/></svg>${me.name}</span>`).join('');
+  $('expSub').textContent = `${EXP.T} random fragments of the held-out text per length, each encrypted with a random shift 1–25. A method succeeds when it returns exactly the right shift.`;
+  $('expTH').innerHTML = '<tr><th class="num">Letters</th>' + METHODS.map(me => `<th class="num">${me.name}</th>`).join('') + '</tr>';
+  $('expT').innerHTML = LENGTHS.map((Lg, i) => `<tr><td class="num">${Lg}</td>${METHODS.map((_, mi) => `<td class="num">${(EXP.out[mi][i] * 100).toFixed(0)}%</td>`).join('')}</tr>`).join('');
+  const need = mi => { const i = EXP.out[mi].findIndex((v, j) => EXP.out[mi].slice(j).every(x => x >= .95)); return i < 0 ? 'more than 100' : LENGTHS[i]; };
+  $('fExp').innerHTML = [
+    `Letters needed for at least 95% success: ${METHODS.map((me, mi) => `<b>${me.name}</b> ${need(mi)}`).join(' · ')}.`,
+    `With 1–3 letters every method is close to guessing, because almost any short string is "plausible". The bigram and dictionary methods pull ahead first: they use the order of letters and the word breaks that Caesar leaves in place.`,
+    `"Most frequent letter = E" climbs slowest. In short fragments E is often not the most common letter, and a single wrong peak gives a wrong key. Using the whole distribution (χ²) fixes this from a few dozen letters on.`
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
+/* ================= §5 attacks ================= */
+let STOP = false;
+const logEl = $('atkLog');
+const log = (html) => { logEl.innerHTML += html + '\n'; };
+function setBusy(b) { ['bBrute', 'bBsgs', 'bR', 'scaleRun'].forEach(id => $(id).disabled = b); $('bStop').disabled = !b; }
+function renderTarget() {
+  const C = ST.C;
+  $('atkTarget').innerHTML = `<span class="pre">curve       </span>${esc(C.label)}<br><span class="pre">public key  </span>Q = ${C.kind === 'toy' ? C.fmt(ST.Q) : hex(ST.Q.toRawBytes(true))}<br><span class="pre">key range   </span>1 … ${C.kind === 'toy' ? C.kMax : '2^' + C.bits + ' = ' + int(C.kMax)}<br><span class="pre">ciphertext  </span>${ST.blocks.length} blocks (C₁, C₂) from §1`;
+}
+async function bruteForce(C, Q, K, onProg) {
+  const t0 = performance.now(); let last = t0, R = C.G, k = 1n;
+  while (k <= K) {
+    if (C.eq(R, Q)) return { k, ms: performance.now() - t0 };
+    R = C.add(R, C.G); k++;
+    if ((k & 1023n) === 0n && performance.now() - last > 40) { if (STOP) return null; onProg && onProg(Number(k) / Number(K)); await tick(); last = performance.now(); }
+  }
+  return { k: null, ms: performance.now() - t0 };
+}
+async function bsgs(C, Q, K, onProg) {
+  const t0 = performance.now(), m = BigInt(Math.ceil(Math.sqrt(Number(K)))), M = Number(m);
+  const table = new Map();
+  if (C.kind === 'toy') {
+    let P = C.G; for (let j = 1; j <= M; j++) { if (!table.has(C.key(P))) table.set(C.key(P), j); P = C.add(P, C.G); }
+    const step = C.neg(C.mul(m, C.G)); let Gm = Q;
+    for (let i = 0; i <= M; i++) { if (C.isO(Gm)) return { k: BigInt(i) * m, ms: performance.now() - t0, m: M }; const j = table.get(C.key(Gm)); if (j !== undefined) return { k: BigInt(i) * m + BigInt(j), ms: performance.now() - t0, m: M }; Gm = C.add(Gm, step); }
+    return { k: null, ms: performance.now() - t0, m: M };
+  }
+  const kx = p => p.px.toString(36) + (p.py & 1n ? 'o' : 'e');
+  let P = SP.BASE, batch = [], idx = [], last = performance.now();
+  for (let j = 1; j <= M; j++) {
+    batch.push(P); idx.push(j); P = P.add(SP.BASE);
+    if (batch.length === 2048 || j === M) {
+      SP.normalizeZ(batch).forEach((q, t) => { const key = kx(q); if (!table.has(key)) table.set(key, idx[t]); }); batch = []; idx = [];
+      if (performance.now() - last > 40) { if (STOP) return null; onProg && onProg(j / (2 * M)); await tick(); last = performance.now(); }
+    }
+  }
+  const step = SP.BASE.multiply(m).negate(); let Gm = Q;
+  for (let i = 0; i <= M;) {
+    const pts = [], is = [];
+    for (let c = 0; c < 1024 && i <= M; c++, i++) { if (Gm.pz === 0n) return { k: BigInt(i) * m, ms: performance.now() - t0, m: M }; pts.push(Gm); is.push(i); Gm = Gm.add(step); }
+    const nz = SP.normalizeZ(pts);
+    for (let t = 0; t < nz.length; t++) { const j = table.get(kx(nz[t])); if (j !== undefined) return { k: BigInt(is[t]) * m + BigInt(j), ms: performance.now() - t0, m: M }; }
+    if (performance.now() - last > 40) { if (STOP) return null; onProg && onProg(.5 + i / (2 * M)); await tick(); last = performance.now(); }
+  }
+  return { k: null, ms: performance.now() - t0, m: M };
+}
+const fmtMs = ms => ms < .01 ? 'under 10 µs' : ms < 1 ? (ms * 1000).toFixed(0) + ' µs' : ms < 1000 ? ms.toFixed(1) + ' ms' : (ms / 1000).toFixed(2) + ' s';
+const prog = f => { $('atkBar').style.width = (100 * Math.min(1, f)).toFixed(1) + '%'; };
+function afterKey(C, k, how) {
+  const dec = eccDecrypt(C, ST.E, k, ST.blocks);
+  log(`decrypt with k = ${k}:  <span class="ok">${esc(dec.text)}</span>`);
+  log(dec.text === ST.msg ? '<span class="ok">✓ the message is recovered without the receiver\'s help.</span>' : '<span class="bad">✗ decryption failed</span>');
+}
+$('bBrute').addEventListener('click', async () => {
+  const C = ST.C; STOP = false; setBusy(true); logEl.textContent = ''; prog(0);
+  const est = Number(C.kMax) * (C.kind === 'toy' ? 0.0002 : 0.008);
+  log(`<span class="dim">brute force: test k = 1, 2, 3, … against Q (up to ${int(C.kMax)} candidates${est > 5000 ? `, roughly ${Math.round(est / 1000)} s here in the worst case` : ''})</span>`);
+  const r = await bruteForce(C, ST.Q, C.kMax, prog);
+  if (!r) log('<span class="bad">stopped</span>');
+  else if (r.k === null) log('<span class="bad">not found in range</span>');
+  else { prog(1); log(`found <span class="ok">k = ${r.k}</span> after testing ${int(r.k)} candidates in ${fmtMs(r.ms)}`); afterKey(C, r.k); }
+  setBusy(false);
+});
+$('bBsgs').addEventListener('click', async () => {
+  const C = ST.C; STOP = false; setBusy(true); logEl.textContent = ''; prog(0);
+  log(`<span class="dim">baby-step giant-step over 1 … ${int(C.kMax)}: m = ⌈√K⌉ = ${int(Math.ceil(Math.sqrt(Number(C.kMax))))} baby steps stored, then up to m giant steps</span>`);
+  const r = await bsgs(C, ST.Q, C.kMax, prog);
+  if (!r) log('<span class="bad">stopped</span>');
+  else if (r.k === null) log('<span class="bad">not found</span>');
+  else { prog(1); log(`found <span class="ok">k = ${r.k}</span> with at most ${int(2 * r.m)} point additions (instead of up to ${int(C.kMax)}) in ${fmtMs(r.ms)}`); afterKey(C, r.k); }
+  setBusy(false);
+});
+$('bR').addEventListener('click', () => {
+  const C = ST.C; logEl.textContent = ''; prog(0);
+  if (C.kind !== 'toy') { log('<span class="bad">not feasible here:</span> on this option only k is restricted; each r is a full 256-bit random number, so C₁ = r·G cannot be searched. Use the key-search attacks.'); return; }
+  log(`<span class="dim">the group has only ${C.n} points, so a table of j·G for j = 0 … ${C.n - 1n} gives every discrete log at once</span>`);
+  const t0 = performance.now(), digits = [];
+  ST.blocks.forEach((b, i) => {
+    const r = C.all.get(C.key(b.C1)), Mpt = C.add(b.C2, C.neg(C.mul(BigInt(r), ST.Q))), d = ST.E.map.get(C.key(Mpt));
+    digits.push(d);
+    if (i < 6) log(`block ${i + 1}: C₁ = ${C.fmt(b.C1)} → r = ${r} → M = C₂ − r·Q = ${C.fmt(Mpt)} → ${d}`);
+  });
+  const text = assemble(ST.E, digits); prog(1);
+  log(`…\nmessage, without ever learning k: <span class="ok">${esc(text)}</span>  (${fmtMs(performance.now() - t0)})`);
+});
+$('bStop').addEventListener('click', () => { STOP = true; });
+
+/* scaling experiment on secp256k1 */
+let SCALE = { brute: [], bsgs: [] };
+async function runScale(full) {
+  STOP = false; setBusy(true); SCALE = { brute: [], bsgs: [] };
+  const bb = full ? [8, 10, 12, 14, 16, 18, 20] : [8, 10, 12, 14, 16], gb = full ? [8, 12, 16, 20, 24, 28, 32, 36] : [8, 12, 16, 20, 24, 28];
+  const S = makeSecp('x', 256);
+  for (const b of bb) {
+    $('scaleStatus').textContent = `brute force, ${b}-bit range…`; await tick();
+    const K = 1n << BigInt(b), Q = SP.BASE.multiply(K); const r = await bruteForce(S, Q, K); if (!r) break;
+    SCALE.brute.push([b, r.ms / 1000]); drawScale();
+  }
+  for (const b of gb) {
+    if (STOP) break;
+    $('scaleStatus').textContent = `baby-step giant-step, ${b}-bit range…`; await tick();
+    const K = 1n << BigInt(b), Q = SP.BASE.multiply(K - 1n); const r = await bsgs(S, Q, K); if (!r) break;
+    SCALE.bsgs.push([b, r.ms / 1000]); drawScale();
+  }
+  setBusy(false);
+  $('scaleStatus').textContent = STOP ? 'stopped' : `measured ${SCALE.brute.length + SCALE.bsgs.length} points`;
+}
+function perStep() {
+  const lb = SCALE.brute[SCALE.brute.length - 1], lg = SCALE.bsgs[SCALE.bsgs.length - 1];
+  return { tb: lb ? lb[1] / 2 ** lb[0] : 7e-6, tg: lg ? lg[1] / (2 * 2 ** (lg[0] / 2)) : 1.2e-5 };
+}
+const human = sec => {
+  if (sec < 1e-3) return (sec * 1e6).toFixed(0) + ' µs'; if (sec < 1) return (sec * 1e3).toFixed(0) + ' ms'; if (sec < 120) return sec.toFixed(1) + ' s';
+  if (sec < 7200) return (sec / 60).toFixed(0) + ' min'; if (sec < 172800) return (sec / 3600).toFixed(0) + ' h'; if (sec < 3.15e7 * 2) return (sec / 86400).toFixed(0) + ' days';
+  const y = sec / 3.156e7; return y < 1e6 ? int(Math.round(y)) + ' years' : '10^' + Math.log10(y).toFixed(0) + ' years';
+};
+function drawScale() {
+  const wrap = $('chScale'), { s, w, h } = svgBox(wrap, 300), m = { l: 58, r: 120, t: 14, b: 36 };
+  const yLo = -6, yHi = 76, X = b => m.l + b / 256 * (w - m.l - m.r), Y = lg => h - m.b - (lg - yLo) / (yHi - yLo) * (h - m.t - m.b);
+  for (const t of [-6, 0, 12, 24, 36, 48, 60, 72]) { el('line', { x1: m.l, x2: w - m.r, y1: Y(t), y2: Y(t), class: 'g-hair' }, s); const tx = el('text', { x: m.l - 6, y: Y(t) + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); tx.textContent = t === 0 ? '1 s' : '10^' + t + ' s'; }
+  for (const b of [0, 32, 64, 128, 192, 256]) { const t = el('text', { x: X(b), y: h - m.b + 15, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = b; }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  const xl = el('text', { x: w - m.r, y: h - 3, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = 'bits of key space b';
+  for (const [v, name] of [[0, '1 second'], [Math.log10(3.156e7), '1 year'], [Math.log10(4.35e17), 'age of universe']]) {
+    el('line', { x1: m.l, x2: w - m.r, y1: Y(v), y2: Y(v), class: 'g-ref' }, s);
+    const t = el('text', { x: w - m.r + 6, y: Y(v) + 3.5, class: 'g-tl' }, s); t.textContent = name;
+  }
+  const { tb, tg } = perStep();
+  const line = (f, cls) => { const pts = []; for (let b = 0; b <= 256; b += 4) { const lg = f(b); if (lg <= yHi) pts.push((pts.length ? 'L' : 'M') + X(b).toFixed(1) + ',' + Y(Math.max(yLo, lg)).toFixed(1)); } el('path', { d: pts.join(''), class: 'ln dash ' + cls }, s); };
+  line(b => Math.log10(tb) + b * Math.log10(2), 'cE');
+  line(b => Math.log10(2 * tg) + b / 2 * Math.log10(2), 'cS');
+  const end = (f, cls, label) => { let b = 256; while (f(b) > yHi && b > 0) b -= 1; const t = el('text', { x: X(b) + 6, y: Y(f(b)) + 4, class: 'g-tl' }, s); t.textContent = label; };
+  end(b => Math.log10(tb) + b * Math.log10(2), 'cE', 'brute force'); end(b => Math.log10(2 * tg) + b / 2 * Math.log10(2), 'cS', 'BSGS / rho');
+  for (const [arr, cls, name] of [[SCALE.brute, 'cE', 'brute force'], [SCALE.bsgs, 'cS', 'BSGS']]) for (const [b, sec] of arr) {
+    const c = el('circle', { cx: X(b), cy: Y(Math.log10(Math.max(sec, 1e-6))), r: 5, class: cls + ' mk' }, s);
+    const hit = el('circle', { cx: X(b), cy: Y(Math.log10(Math.max(sec, 1e-6))), r: 12, fill: 'transparent' }, s);
+    hit.addEventListener('pointermove', ev => showTip(ev, human(sec), [`${name}, ${b}-bit range (measured)`]));
+    hit.addEventListener('pointerleave', hideTip);
+  }
+  const rows = [[16, 'what the §1 options use'], [32, 'the Profanity bug (2022)'], [64, ''], [128, ''], [256, 'full secp256k1 key']];
+  $('scaleT').innerHTML = rows.map(([b, c]) => `<tr><td>2^${b}</td><td class="num">${human(tb * 2 ** b)}</td><td class="num">${human(2 * tg * 2 ** (b / 2))}</td><td class="wrap">${c}</td></tr>`).join('');
+  const rho = 2 * tg * 2 ** 128;
+  $('whyReal').innerHTML = `The cost of key search grows with the size of the key space, not with the message. At the rate measured in this browser (${(tb * 1e6).toFixed(1)} µs per point addition), trying all 2<sup>256</sup> keys would take about ${human(tb * 2 ** 256)}, and even the square-root attacks need about ${human(rho)}. A billion computers, each a million times faster than this browser, would still need about ${human(rho / 1e15)}, while the universe is about 1.4 × 10<sup>10</sup> years old. Unlike Caesar, the ciphertext gives nothing else to work with: the masks r·Q make every block look uniformly random.`;
+}
+$('scaleRun').addEventListener('click', () => runScale(true));
+
+function autoAttack() {
+  const C = ST.C; logEl.textContent = ''; prog(0);
+  if (C.kind === 'toy') { $('bBrute').click(); return; }
+  log(`<span class="dim">Target ready. Baby-step giant-step needs about ${int(2 * Math.ceil(Math.sqrt(Number(C.kMax))))} point additions here; brute force needs up to ${int(C.kMax)}${C.bits > 22 ? ', which is too slow to run comfortably in a browser (press Stop to abort)' : ''}.</span>`);
+}
+/* demos */
+function demoSetup() {
+  let C = ST.C, note = '';
+  if (C.kind === 'toy' && C.n < 53n) { C = curve('t97'); note = ' (run on the mod-97 toy curve, because mod 17 needs two blocks per symbol)'; }
+  const E = encodingFor(C), k = C === ST.C ? ST.k : randBig(C.kMax), Q = C === ST.C ? ST.Q : C.mul(k, C.G);
+  return { C, E, k, Q, note };
+}
+$('malRun').addEventListener('click', () => {
+  const D = demoSetup(), out = $('malLog'); out.textContent = '';
+  const blocks = D.C === ST.C ? ST.blocks : eccEncrypt(D.C, D.E, D.Q, ST.msg, false);
+  const tampered = blocks.map(b => ({ ...b, C2: D.C.add(b.C2, D.C.G) }));
+  const a = eccDecrypt(D.C, D.E, D.k, blocks).text, b = eccDecrypt(D.C, D.E, D.k, tampered).text;
+  out.innerHTML = `original    ${esc(a)}\nC₂ + G      <span class="bad">${esc(b)}</span>\n<span class="dim">the receiver decrypts with the correct k and gets a shifted message${D.note}; ␣ (0) became A, Z would become an invalid symbol</span>`;
+});
+$('nonceRun').addEventListener('click', () => {
+  const D = demoSetup(), out = $('nonceLog'); out.textContent = '';
+  const text = normalizeMsg(CORP.test).slice(0, 400);
+  const blocks = eccEncrypt(D.C, D.E, D.Q, text, true);
+  const sameC1 = blocks.every(b => D.C.eq(b.C1, blocks[0].C1));
+  const dmap = new Map(); for (let d = -26; d <= 26; d++) dmap.set(D.C.key(D.C.mul(BigInt(d), D.C.G)), d);
+  const ds = blocks.map(b => dmap.get(D.C.key(D.C.add(b.C2, D.C.neg(blocks[0].C2)))));
+  const lo = -Math.min(...ds), hi = 26 - Math.max(...ds), cands = [];
+  for (let m0 = lo; m0 <= hi; m0++) { const t = ds.map(d => ALPH[m0 + d]).join(''); const lt = lettersOf(t); let sc = 0; for (let i = 0; i + 1 < lt.length; i++) sc += MODEL.lp2[lt[i] * 26 + lt[i + 1]]; cands.push({ m0, t, sc }); }
+  cands.sort((x, y) => y.sc - x.sc);
+  const win = cands[0];
+  out.innerHTML = `${blocks.length} blocks, all C₁ equal: ${sameC1 ? '<span class="bad">yes</span> → r was reused' : 'no'}\n`
+    + `C₂ᵢ − C₂₀ = (mᵢ − m₀)·G → table of 53 points gives every difference\n`
+    + `differences: ${ds.slice(0, 14).join(' ')} …\n`
+    + `the plaintext is now known up to one shift m₀: a Caesar cipher on 27 symbols\n`
+    + `range constraints leave ${cands.length} candidate${cands.length > 1 ? 's' : ''}; the bigram score picks m₀ = ${win.m0}:\n`
+    + `<span class="${win.t === text ? 'ok' : 'bad'}">${esc(win.t.slice(0, 120))}…</span>\n`
+    + `<span class="dim">${win.t === text ? '✓ full passage recovered without k' : '✗ wrong candidate'}${D.note}</span>`;
+});
+
+/* ================= wiring ================= */
+function refreshAll(newR) { if (renderECC(newR) === false) return; renderCaesar(); renderCompare(); renderTarget(); drawScale(); autoAttack(); $('malRun').click(); $('nonceRun').click(); const D = demoSetup(); $('malSub').textContent = `Without knowing k, an attacker adds G to every C₂ of the §1 ciphertext${D.note}.`; $('nonceSub').textContent = `A 400-character passage encrypted with one r for all blocks${D.note}. The attacker never learns k.`; }
+$('curveSel').addEventListener('change', () => {
+  const C = curve($('curveSel').value);
+  $('kIn').value = C.kind === 'toy' ? '6' : String(randBig(C.kMax));
+  logEl.textContent = ''; prog(0); refreshAll(true);
+});
+$('kRand').addEventListener('click', () => { $('kIn').value = String(randBig(curve($('curveSel').value).kMax)); refreshAll(true); });
+let kT = 0;
+$('kIn').addEventListener('input', () => { clearTimeout(kT); kT = setTimeout(() => refreshAll(true), 250); });
+$('msgIn').addEventListener('input', () => { clearTimeout(kT); kT = setTimeout(() => refreshAll(true), 250); });
+$('reEnc').addEventListener('click', () => refreshAll(true));
+const setShift = v => { v = ((Math.floor(+v) % 26) + 26) % 26; if (!Number.isFinite(v)) return; ST.shift = v; $('shiftIn').value = v; $('shiftRange').value = v; delete $('atkIn').dataset.custom; $('atkIn').dataset.truth = v; renderCaesar(); renderCompare(); };
+$('shiftRange').addEventListener('input', e => setShift(e.target.value));
+$('shiftIn').addEventListener('change', e => setShift(e.target.value));
+$('atkIn').addEventListener('input', () => { $('atkIn').dataset.custom = '1'; delete $('atkIn').dataset.truth; runAttackTool(); });
+$('atkFrom2').addEventListener('click', () => { delete $('atkIn').dataset.custom; $('atkIn').dataset.truth = ST.shift; renderCaesar(); });
+const testCase = L0 => { const rnd = mulberry32((Math.random() * 1e9) | 0), s = 1 + Math.floor(Math.random() * 25); $('atkIn').value = caesar(sample(CORP.test, L0, rnd), s); $('atkIn').dataset.custom = '1'; $('atkIn').dataset.truth = s; runAttackTool(); };
+$('atkLong').addEventListener('click', () => testCase(300));
+$('atkShort').addEventListener('click', () => testCase(6));
+$('expRun').addEventListener('click', () => runExperiment((Math.random() * 1e9) | 0));
+$('corpusFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $('corpusIn').value = String(r.result).slice(0, 3e6); $('corpusStatus').textContent = `${f.name} loaded, press "Use this corpus"`; }; r.readAsText(f); });
+$('corpusUse').addEventListener('click', () => {
+  const t = $('corpusIn').value; const n = lettersOf(t).length;
+  if (n < 2000) { $('corpusStatus').className = 'status bad'; $('corpusStatus').textContent = `Only ${n} letters; use at least 2,000.`; return; }
+  const cut = Math.floor(t.length * .8), sp = t.indexOf(' ', cut);
+  setCorpus({ train: t.slice(0, sp > 0 ? sp : cut), test: t.slice(sp > 0 ? sp : cut), name: 'your corpus' });
+  $('corpusStatus').className = 'status ok'; $('corpusStatus').textContent = 'Using your corpus.';
+  runAttackTool(); renderCompare(); runExperiment(7);
+});
+$('corpusReset').addEventListener('click', () => { setCorpus(BUILTIN); $('corpusStatus').textContent = 'Using the built-in corpus.'; runAttackTool(); renderCompare(); runExperiment(7); });
+
+function currentDark() { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; }
+function syncTheme() { $('themeBtn').textContent = currentDark() ? 'Whiteprint' : 'Blueprint'; }
+$('themeBtn').addEventListener('click', () => { document.documentElement.dataset.theme = currentDark() ? 'light' : 'dark'; });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+syncTheme();
+let rw = 0, lastW = 0;
+new ResizeObserver(() => { const w = document.querySelector('.sheet').clientWidth; if (Math.abs(w - lastW) < 2) return; const first = !lastW; lastW = w; if (first) return; clearTimeout(rw); rw = setTimeout(() => { renderCompare(); runAttackTool(); setCorpus(CORP); drawExperiment(); drawScale(); }, 200); }).observe(document.querySelector('.sheet'));
+
+// first render: complete at rest
+setCorpus(BUILTIN);
+$('atkIn').dataset.truth = ST.shift;
+refreshAll(true);
+setTimeout(async () => { await runExperiment(7); await runScale(false); }, 60);
+})();
+</script>
+</body>
+</html>
