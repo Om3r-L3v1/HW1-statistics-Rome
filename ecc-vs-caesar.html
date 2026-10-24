@@ -117,6 +117,13 @@ textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px soli
 .status{font-family:var(--f-mono);font-size:12px;margin:0;color:var(--ink-2)}
 .status.ok{color:var(--ok)} .status.bad{color:var(--hot)}
 .krow{display:flex;gap:10px;align-items:center}
+.seg{display:flex;flex-wrap:wrap}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;font-family:var(--f-mono);font-size:12px;padding:9px 14px;border:1.5px solid var(--ink);margin-left:-1.5px;cursor:pointer}
+.seg label:first-child span{margin-left:0}
+.seg input:checked + span{background:var(--ink);color:var(--on-ink)}
+.seg input:focus-visible + span{outline:2px solid var(--amber);outline-offset:2px}
 
 /* stations (same as HMWK 2) */
 .pipe{display:grid;gap:0;border:1.5px solid var(--ink)}
@@ -177,7 +184,7 @@ td.win{color:var(--hot);font-weight:700}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;border:1.5px solid var(--ink)}
 .stat{padding:10px 12px;border:.75px solid var(--ink);display:grid;gap:2px;min-width:0}
 .stat .v{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:28px;line-height:1.05;overflow-wrap:anywhere}
-.stat .s{font-size:13px;color:var(--ink-2)}
+.stat .s{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere}
 .findings{margin:0;padding:0;list-style:none;display:grid;gap:8px;max-width:88ch}
 .findings li{padding-left:22px;position:relative}
 .findings li::before{content:"→";position:absolute;left:0;color:var(--hot);font-weight:700}
@@ -229,7 +236,7 @@ details.more > div{margin-top:10px;display:grid;gap:10px}
   <header class="hero">
     <div class="label">Homework (2) · Encryption, decryption and cryptanalysis</div>
     <h1>Two ciphers, <span class="a">two ways</span> to break them</h1>
-    <p class="lede">The same short message is encrypted twice: with a toy elliptic-curve scheme built on the curve and point arithmetic of HMWK 1, and with the Caesar cipher. Then each is broken. Caesar falls to letter statistics; the toy ECC scheme falls to an exhaustive search of its deliberately small key space. Everything is computed live in your browser.</p>
+    <p class="lede">The same short message is encrypted twice: with a toy elliptic-curve scheme built on the curve and point arithmetic of HMWK 1, and with the Caesar cipher. Then each is broken. Caesar falls to letter statistics; the toy ECC scheme falls to an exhaustive search of its deliberately small key space. The intro does the whole experiment in English or Italian with full-size ECC; the numbered sections go deeper. Everything is computed live in your browser.</p>
     <div class="duel" aria-label="The same message under both schemes">
       <div><span class="label">Toy EC-ElGamal · ciphertext starts</span><b id="duelEcc">—</b><span class="ct" id="duelEccCt"></span></div>
       <div class="vs">VS</div>
@@ -243,8 +250,53 @@ details.more > div{margin-top:10px;display:grid;gap:10px}
     <div><dt class="label">Message</dt><dd id="tbMsg"></dd></div>
     <div><dt class="label">ECC key range</dt><dd id="tbRange"></dd></div>
     <div><dt class="label">Caesar keys</dt><dd>26 shifts</dd></div>
+    <div><dt class="label">Languages</dt><dd>English · Italiano</dd></div>
     <div><dt class="label">Print</dt><dd><button class="themebtn" id="themeBtn" type="button">Blueprint</button></dd></div>
   </dl>
+
+  <!-- Intro -->
+  <section class="block" id="intro" aria-labelledby="h0x">
+    <div class="ph"><h2 id="h0x"><span class="tag">Intro</span>Caesar vs modern ECC: what letter statistics reveal</h2>
+      <p class="q">Encrypt one message with a Caesar cipher and with modern elliptic-curve encryption, compare the statistics, use the language's letter distribution to recover the Caesar key, then try the same on ECC. Sections §1–§5 below take each step further.</p></div>
+    <div class="inner">
+      <div class="controls">
+        <div class="field"><span class="label" id="langLbl">Language</span>
+          <div class="seg" role="radiogroup" aria-labelledby="langLbl">
+            <label><input type="radio" name="lang" value="en" checked><span>English</span></label>
+            <label><input type="radio" name="lang" value="it"><span>Italiano</span></label>
+          </div></div>
+        <div class="field"><label class="label" for="iShift">Caesar key s</label>
+          <div class="krow"><input type="range" id="iShiftR" min="1" max="25" value="3" aria-label="Caesar key" style="width:180px"><input type="number" id="iShift" min="1" max="25" value="3" style="width:72px"></div></div>
+        <button class="btn" id="iNewKey" type="button">New ECC key pair</button>
+        <button class="btn" id="iSample" type="button">Use the sample text</button>
+      </div>
+      <div class="field"><label class="label" for="iMsg">Message</label>
+        <textarea id="iMsg" rows="3" spellcheck="false"></textarea>
+        <p class="note" style="font-size:13px">Accented letters are written without accents (à → a, è → e) before encryption, as is usual for classical ciphers. Longer messages make the statistics clearer.</p></div>
+
+      <div class="h3">A · Encrypt the same message twice</div>
+      <div class="cols two">
+        <div class="chart"><h3>Caesar cipher, key s = <span id="iS1">3</span></h3><p class="sub">Every letter moves s places along the alphabet; spaces and punctuation stay. The key is one of 26 numbers.</p><div class="val" id="iCaesarCt"></div></div>
+        <div class="chart"><h3>Modern ECC: ECIES-style encryption on secp256k1</h3><p class="sub" id="iEccSub"></p><div class="val" id="iEccCt"></div><p class="check" id="iEccChk"></p></div>
+      </div>
+
+      <div class="h3">B · Compare the statistics</div>
+      <div class="cols">
+        <div class="chart"><h3 id="iLangH">Letter distribution of English</h3><p class="sub" id="iLangSub"></p><div class="svgw" id="iChLang"></div></div>
+        <div class="chart"><h3>Caesar ciphertext letters</h3><p class="sub">The language's shape, moved s places. Ticks: the language shifted by the key found in step C.</p><div class="svgw" id="iChCaesar"></div></div>
+        <div class="chart"><h3>ECC ciphertext bytes, read as letters</h3><p class="sub">Each byte taken mod 26. Ticks: the language at the best shift found in step D.</p><div class="svgw" id="iChEcc"></div></div>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Measure</th><th class="num">Plaintext</th><th class="num">Caesar ciphertext</th><th class="num">ECC ciphertext</th><th>Meaning</th></tr></thead><tbody id="iStatT"></tbody></table></div>
+
+      <div class="h3">C · Recover the Caesar key &nbsp;·&nbsp; D · Try the same on ECC</div>
+      <div class="cols two">
+        <div class="chart"><h3>Distance from the language at every shift (log scale)</h3><p class="sub">Decrypt with each of the 26 shifts and measure χ² per letter against the <span id="iLangName">English</span> distribution. Lower means more like the language; below the dashed line a text is statistically consistent with real <span id="iLangName2">English</span>.</p><div class="svgw" id="iChChi"></div>
+          <div class="legend"><span class="cS"><i class="sw line"></i>Caesar ciphertext</span><span class="cE"><i class="sw line"></i>ECC ciphertext</span><span><i class="sw dash" style="color:var(--ink-3)"></i>language threshold (99% of real text lies below)</span></div></div>
+        <div class="chart"><h3>Result</h3><div class="stats" id="iTiles" style="grid-template-columns:minmax(0,1fr)"></div></div>
+      </div>
+      <ul class="findings" id="iFind"></ul>
+    </div>
+  </section>
 
   <!-- §1 ECC -->
   <section class="block" aria-labelledby="h1x">
@@ -2703,7 +2755,7 @@ const caesar = (t, s) => t.replace(/[A-Za-z]/g, c => { const b = c <= 'Z' ? 65 :
 
 /* ================= language model & attack ================= */
 let MODEL = null, CORP = BUILTIN;
-function lettersOf(t) { const out = []; for (const c of t.toUpperCase()) { const v = c.charCodeAt(0) - 65; if (v >= 0 && v < 26) out.push(v); } return Uint8Array.from(out); }
+function lettersOf(t) { const out = []; for (const c of t.normalize('NFD').toUpperCase()) { const v = c.charCodeAt(0) - 65; if (v >= 0 && v < 26) out.push(v); } return Uint8Array.from(out); }
 function buildModel(train) {
   const lt = lettersOf(train), N = lt.length, cnt = new Float64Array(26), big = new Float64Array(676), row = new Float64Array(26);
   for (let i = 0; i < N; i++) { cnt[lt[i]]++; if (i + 1 < N) { big[lt[i] * 26 + lt[i + 1]]++; row[lt[i]]++; } }
@@ -3193,6 +3245,148 @@ $('nonceRun').addEventListener('click', () => {
     + `<span class="dim">${win.t === text ? '✓ full passage recovered without k' : '✗ wrong candidate'}${D.note}</span>`;
 });
 
+/* ================= Intro: Caesar vs modern ECC, English / Italian ================= */
+// Italian training text: original prose written for this page (accents are stripped before analysis)
+const ITALIAN = [
+"Il porto si sveglia prima della città. Molto prima che il primo negozio alzi la serranda, i pescherecci stanno già uscendo oltre la diga, con i motori che tossiscono nell'aria fredda e le luci che oscillano sull'acqua scura. Sul molo alcuni uomini con giacconi pesanti controllano le cime e si chiamano a vicenda con frasi brevi e pratiche. A quell'ora nessuno spreca parole. I gabbiani sono più rumorosi delle persone e seguono le barche verso il mare aperto, come se si aspettassero di essere pagati per la compagnia. Quando il sole è alto, il porto torna tranquillo e l'odore di sale e di gasolio resta sospeso sopra gli ormeggi vuoti.",
+"Mia nonna faceva il pane ogni venerdì e non usava mai una ricetta. Misurava la farina con una tazza azzurra sbeccata, aggiungeva acqua finché l'impasto non le sembrava giusto e lo lavorava sul tavolo della cucina per un quarto d'ora senza fermarsi. Quando le chiedevo come facesse a capire che era pronto, premeva un dito nella pasta e la guardava risalire lentamente. Diceva che quella era l'unica prova che contava. Le pagnotte lievitavano sotto un canovaccio pulito vicino alla stufa, mentre noi bevevamo il tè e ascoltavamo la radio. La sera tutta la casa profumava di caldo, e la prima fetta spettava sempre a chi era stato più paziente.",
+"Le persone hanno cercato di nascondere i propri messaggi da quando hanno imparato a scriverli. Un generale poteva voler mandare ordini che il nemico non riuscisse a leggere; un mercante poteva voler proteggere il prezzo che intendeva offrire. I primi metodi erano semplici. Le lettere venivano spostate lungo l'alfabeto, scambiate secondo una tabella oppure scritte in un ordine noto soltanto al destinatario. Questi trucchi funzionarono per un po' perché pochi sapevano leggere. Quando sempre più persone impararono a leggere e a contare, le regolarità nascoste nei messaggi divennero più facili da vedere, e ogni metodo ingegnoso fu prima o poi seguito da un modo altrettanto ingegnoso per romperlo.",
+"Il treno per la montagna parte alle sette e impiega quasi quattro ore. Nella prima parte del viaggio non c'è nulla da guardare se non magazzini, parcheggi e il retro delle case con i panni stesi in giardino. Poi la linea segue un fiume e la valle si stringe finché le pareti di roccia sembrano così vicine da poterle toccare dal finestrino. I bambini schiacciano il viso contro il vetro a ogni galleria. Verso la fine il treno sale così piano che chi cammina sul sentiero accanto ai binari potrebbe tenere il passo. La stazione in cima è piccola e fredda, con una sola panchina e un orologio che è avanti di cinque minuti da anni.",
+"Le previsioni del tempo parlano di probabilità, non fanno promesse. Quando la radio annuncia il settanta per cento di probabilità di pioggia, significa che nei giorni con condizioni simili è piovuto circa sette volte su dieci. Molti ascoltatori sentono soltanto la parola pioggia e decidono di restare a casa. Altri prendono l'ombrello e si lamentano se poi non piove. I meteorologi sono diventati molto bravi nel loro lavoro negli ultimi cinquant'anni, soprattutto perché dispongono di più misure, di computer più veloci e di una migliore comprensione di come l'aria si muove sopra la terra e il mare.",
+"Il sabato il mercato riempie la piazza da un capo all'altro. Ci sono banchi di formaggi e di olive, di miele delle colline, di scarpe economiche e di occhiali da sole costosi, e di verdure ancora impolverate dai campi. I venditori conoscono per nome i clienti abituali e ricordano che cosa hanno comprato la settimana prima. Una signora che vende pomodori ne regala sempre uno piccolo ai bambini perché lo assaggino, e quasi tutti fanno una smorfia e ne chiedono un altro. A mezzogiorno la frutta migliore è finita, i prezzi cominciano a scendere e chi arriva tardi sa benissimo perché ha aspettato.",
+"Cara Anna, grazie per la tua lettera, che è arrivata martedì dopo quello che deve essere stato un lungo viaggio. Sono contento di sapere che il nuovo lavoro va bene e che finalmente nel tuo appartamento c'è l'acqua calda. Qui tutto è più o meno come prima. Il giardino è pieno di erbacce perché piove da due settimane, e il gatto ha deciso che il posto migliore per dormire è sopra il computer acceso. La sera leggo molto e provo a imparare la chitarra, che è più difficile di quanto pensassi. Scrivimi presto e dimmi se tornerai a casa per l'estate. Un abbraccio, tuo fratello Marco.",
+"Le maree sono causate soprattutto dalla luna. La sua gravità attira un po' di più il lato della terra rivolto verso di lei rispetto al centro, e un po' di meno il lato opposto, così gli oceani si allungano in due leggeri rigonfiamenti. Mentre la terra ruota, ogni costa passa attraverso entrambi, ed è per questo che quasi ovunque ci sono due alte maree e due basse maree al giorno. Anche il sole ha un effetto simile ma più debole. Quando il sole e la luna sono allineati, con la luna nuova e con la luna piena, le loro attrazioni si sommano e le maree diventano particolarmente forti.",
+"La biblioteca del nostro paese fu costruita più di un secolo fa con il denaro lasciato da un uomo che aveva fatto fortuna vendendo sapone. Ha finestre alte, pavimenti di legno che scricchiolano e una sala di lettura così silenziosa che le persone chiedono scusa quando girano una pagina troppo forte. D'inverno è uno dei posti più caldi in cui sedersi, e durante il periodo degli esami gli studenti occupano ogni tavolo. I bibliotecari sono pazienti con tutti, dai bambini che cercano libri sui dinosauri agli anziani che vengono ogni mattina a leggere i giornali.",
+"Per preparare una semplice minestra di verdure si comincia tagliando una cipolla, due carote, due coste di sedano e qualche patata a pezzi più o meno della stessa grandezza. Si scalda un filo d'olio in una pentola capiente e si fa cuocere la cipolla a fuoco basso finché diventa morbida ma non scura. Si aggiungono le altre verdure, si mescola per un minuto e poi si versa acqua o brodo fino a coprirle. Si regola di sale e di pepe, si aggiunge una foglia di alloro e si lascia sobbollire per una mezz'ora. Un pugno di erbe fresche alla fine la rende speciale, ma anche così è buona in una sera fredda.",
+"Imparare uno strumento musicale insegna la pazienza più di qualunque altra cosa. Per settimane le dita si rifiutano di fare quello che la testa ordina, e ogni melodia semplice suona goffa e lenta. Gli insegnanti dicono spesso che il segreto è esercitarsi un poco ogni giorno piuttosto che molto una volta alla settimana. Hanno ragione, anche se all'inizio non sembra. Poi, una sera, un brano che pareva impossibile scorre all'improvviso senza fatica, e chi suona capisce che il lavoro duro è andato avanti in silenzio per tutto quel tempo. Quel momento è la ricompensa, e di solito arriva subito insieme alla scoperta di un nuovo brano che sembra di nuovo impossibile.",
+"Il circolo degli scacchi si riunisce il giovedì sera nella sala sul retro di un bar vicino alla stazione. I soci vanno da un ingegnere in pensione che gioca da sessant'anni a una ragazzina di undici anni che lo batte più spesso di quanto lui ammetta volentieri. Si gioca con l'orologio, e per lunghi tratti l'unico rumore è il tocco leggero dei pezzi e dei pulsanti. Alla fine i giocatori ripassano insieme i loro errori, spostando i pezzi avanti e indietro e discutendo con cortesia su che cosa sarebbe dovuto succedere. A nessuno dispiace molto perdere. Ciò che amano è la sensazione di pensare intensamente a un solo problema per un'ora.",
+"La nostra squadra non vinceva una partita da ottobre, quindi nessuno si aspettava granché dalla gara di domenica. Nel primo tempo pioveva, il campo si trasformò in fango e gli avversari segnarono due volte prima che quasi tutti noi trovassimo l'equilibrio. Nell'intervallo l'allenatore non gridò. Ci disse soltanto di tenere la palla a terra e di smettere di guardarla dopo averla passata. Qualcosa cambiò. Segnammo all'inizio del secondo tempo, poi di nuovo su calcio d'angolo, e all'ultimo minuto il nostro portiere fece una parata di cui in paese si parla ancora. Un pareggio non era mai sembrato così simile a una vittoria.",
+"Gli ingegneri amano dire che ogni progetto è un compromesso. Un ponte più robusto è anche più pesante, un'automobile più sicura spesso costa di più e un programma che fa tutto insieme di solito è lento e difficile da mantenere. L'abilità sta nel decidere quali proprietà contano di più per un certo lavoro e nell'accettare le debolezze là dove fanno meno danno. I bravi ingegneri scrivono le loro ipotesi perché qualcun altro possa controllarle in seguito. Inoltre provano il loro lavoro in condizioni peggiori di quelle che si aspettano, perché il mondo reale ha l'abitudine di essere meno gentile del tavolo da disegno.",
+"Quando la corrente saltò in tutto il quartiere, la sera diventò stranamente silenziosa. I semafori si spensero, le insegne dei negozi scomparvero e la gente uscì di casa per chiedere agli altri che cosa fosse successo. Qualcuno disse che un temporale aveva danneggiato una linea nella valle; qualcun altro disse che si trattava di un guasto alla centrale. Nessuno lo sapeva davvero. I bambini erano felicissimi e correvano su e giù per la strada con le torce. Dopo un'ora le luci tornarono all'improvviso come se n'erano andate, i televisori ricominciarono a parlare e i vicini rientrarono, un po' imbarazzati di quanto si fossero goduti il buio.",
+"Una buona carta geografica lascia fuori molte cose. Se mostrasse ogni albero, ogni sasso e ogni automobile parcheggiata, sarebbe grande e confusa quanto il territorio stesso. Chi disegna le carte sceglie ciò che conta per le persone che le useranno: le strade per gli automobilisti, i sentieri e le curve di livello per gli escursionisti, le profondità e i fari per i marinai. Tutto il resto viene semplificato o ignorato. La stessa idea vale per molti altri strumenti. Un orario non descrive il treno, ma soltanto quando parte e quando arriva. Saper lasciare fuori le cose giuste è un'abilità che richiede anni.",
+"La prima volta che provai ad attraversare la città in bicicletta mi persi tre volte e arrivai in ufficio fradicio di sudore e con un'ora di ritardo. I colleghi risero e mi diedero consigli che si contraddicevano a vicenda. Nei mesi successivi trovai strade più tranquille, un percorso lungo il canale e una scorciatoia attraverso un parco che chiude al tramonto. Adesso il tragitto dura venticinque minuti ed è la parte migliore della giornata. Vedo le stesse facce agli stessi angoli: il fornaio che scarica il furgone, un uomo che porta a spasso tre cani enormi e una signora che saluta ogni ciclista come se ci conoscesse tutti."
+];
+const LANGS = {
+  en: { name: 'English', train: BUILTIN.train, test: BUILTIN.test,
+    sample: "The ship will leave the northern harbour at dawn on Thursday. Bring the documents, the new maps and enough food for three days. Do not speak to anyone at the station and wait for the signal near the old lighthouse. If the weather turns bad, we will meet again on Saturday evening at the same place." },
+  it: { name: 'Italian', train: ITALIAN.slice(0, -3).join('\n'), test: ITALIAN.slice(-3).join('\n'),
+    sample: "La nave lascerà il porto settentrionale all'alba di giovedì. Porta i documenti, le nuove mappe e abbastanza cibo per tre giorni. Non parlare con nessuno alla stazione e aspetta il segnale vicino al vecchio faro. Se il tempo peggiora, ci incontreremo di nuovo sabato sera nello stesso posto." }
+};
+const stripAcc = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '');
+const te8 = new TextEncoder(), td8 = new TextDecoder();
+const IN = { lang: 'en', s: 3, k: null, Q: null, M: {} };
+function langModel(id) {
+  if (!IN.M[id]) { const M = buildModel(LANGS[id].train); M.testL = lettersOf(LANGS[id].test); IN.M[id] = M; }
+  return IN.M[id];
+}
+function chiCurve(lt, M) {
+  const N = lt.length, cnt = new Float64Array(26); for (const v of lt) cnt[v]++;
+  const out = [];
+  for (let s = 0; s < 26; s++) { let chi = 0; for (let x = 0; x < 26; x++) { const o = cnt[(x + s) % 26], e = N * M.p1[x]; chi += (o - e) * (o - e) / e; } out.push(N ? chi / N : NaN); }
+  let best = 0; for (let s = 1; s < 26; s++) if (out[s] < out[best]) best = s;
+  return { out, cnt, N, best };
+}
+function langThreshold(M, N) {   // 99th percentile of χ²/N for real text of N letters, correctly aligned
+  const key = 'thr' + N; if (M[key]) return M[key];
+  const T = M.testL, n = Math.max(2, Math.min(N, T.length - 1)), rnd = mulberry32(1000 + N), v = [];
+  for (let t = 0; t < 400; t++) { const st = Math.floor(rnd() * (T.length - n)); v.push(chiCurve(T.subarray(st, st + n), M).out[0]); }
+  v.sort((a, b) => a - b);
+  return (M[key] = v[Math.floor(.99 * v.length)]);
+}
+const ic26 = cnt => { let N = 0, s = 0; for (const f of cnt) { N += f; s += f * (f - 1); } return N > 1 ? 26 * s / (N * (N - 1)) : NaN; };
+const ent2 = cnt => { const N = cnt.reduce((a, b) => a + b, 0); let H = 0; for (const f of cnt) if (f) H -= f / N * Math.log2(f / N); return H; };
+const n2b32 = v => Uint8Array.from(v.toString(16).padStart(64, '0').match(/../g), x => parseInt(x, 16));
+function keystream(Sx, len) {   // SHA-256(x(S) ‖ counter), 32 bytes per block
+  const out = new Uint8Array(len), buf = new Uint8Array(36); buf.set(Sx, 0);
+  for (let i = 0, c = 0; i < len; c++) {
+    buf[32] = c >>> 24; buf[33] = (c >>> 16) & 255; buf[34] = (c >>> 8) & 255; buf[35] = c & 255;
+    const h = L.sha256(buf); for (let j = 0; j < 32 && i < len; j++, i++) out[i] = h[j];
+  }
+  return out;
+}
+function eciesEncrypt(Q, bytes) { const r = randBig(NS - 1n), R = SP.BASE.multiply(r), S = Q.multiply(r).toAffine(), ks = keystream(n2b32(S.x), bytes.length); return { R, ct: bytes.map((b, i) => b ^ ks[i]) }; }
+function eciesDecrypt(k, R, ct) { const S = R.multiply(k).toAffine(), ks = keystream(n2b32(S.x), ct.length); return ct.map((b, i) => b ^ ks[i]); }
+function newIntroKey() { IN.k = randBig(NS - 1n); IN.Q = SP.BASE.multiply(IN.k); }
+
+function drawChi(wrap, series, thr) {
+  const { s, w, h } = svgBox(wrap, 250), m = { l: 48, r: 12, t: 12, b: 34 };
+  const all = series.flatMap(x => x.v).concat([thr]).filter(v => v > 0);
+  const lo = Math.floor(Math.log10(Math.min(...all))), hi = Math.ceil(Math.log10(Math.max(...all)));
+  const X = i => m.l + i / 25 * (w - m.l - m.r), Y = v => h - m.b - (Math.log10(Math.max(v, 10 ** lo)) - lo) / Math.max(1, hi - lo) * (h - m.t - m.b);
+  for (let e = lo; e <= hi; e++) { el('line', { x1: m.l, x2: w - m.r, y1: Y(10 ** e), y2: Y(10 ** e), class: 'g-hair' }, s); const t = el('text', { x: m.l - 6, y: Y(10 ** e) + 3.5, 'text-anchor': 'end', class: 'g-t' }, s); t.textContent = e >= 0 ? String(10 ** e) : (10 ** e).toFixed(-e); }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  for (let i = 0; i <= 25; i++) { if (w < 480 && i % 5) continue; if (w >= 480 && i % 1 && i) continue; const t = el('text', { x: X(i), y: h - m.b + 15, 'text-anchor': 'middle', class: 'g-t' }, s); t.textContent = i; }
+  const xl = el('text', { x: w - m.r, y: h - 2, 'text-anchor': 'end', class: 'g-tl' }, s); xl.textContent = 'shift tried';
+  el('line', { x1: m.l, x2: w - m.r, y1: Y(thr), y2: Y(thr), class: 'g-ref' }, s);
+  series.forEach(se => {
+    el('path', { d: se.v.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(''), class: 'ln ' + se.cls }, s);
+    se.v.forEach((v, i) => { const c = el('circle', { cx: X(i), cy: Y(v), r: i === se.best ? 6 : 3, class: se.cls + ' mk' }, s); });
+    const b = se.best, t = el('text', { x: X(b) + (b > 20 ? -9 : 9), y: Y(se.v[b]) + (se.cls === 'cS' ? -10 : 16), 'text-anchor': b > 20 ? 'end' : 'start', class: 'g-tl' }, s);
+    t.textContent = `${se.name}: best s = ${b}`;
+  });
+  const cross = el('line', { x1: 0, x2: 0, y1: m.t, y2: h - m.b, class: 'g-cross', visibility: 'hidden' }, s);
+  const hit = el('rect', { x: m.l - 8, y: m.t, width: w - m.l - m.r + 16, height: h - m.t - m.b, fill: 'transparent' }, s);
+  hit.addEventListener('pointermove', ev => {
+    const r = s.getBoundingClientRect(), i = Math.max(0, Math.min(25, Math.round((ev.clientX - r.left - m.l) / (w - m.l - m.r) * 25)));
+    cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('visibility', 'visible');
+    showTip(ev, `shift ${i}`, series.map(se => [se.cls, `${se.v[i].toFixed(3)}  ${se.name}`]).concat([`threshold ${thr.toFixed(3)}`]));
+  });
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+
+function renderIntro() {
+  const Lg = LANGS[IN.lang], M = langModel(IN.lang), other = langModel(IN.lang === 'en' ? 'it' : 'en');
+  const text = stripAcc($('iMsg').value).trim() || stripAcc(Lg.sample), s = IN.s;
+  if (!IN.k) newIntroKey();
+  const AZ = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  // A · encrypt
+  const ct = caesar(text, s);
+  const bytes = te8.encode(text), E = eciesEncrypt(IN.Q, bytes), back = td8.decode(eciesDecrypt(IN.k, E.R, E.ct));
+  $('iS1').textContent = s; $('iCaesarCt').textContent = ct;
+  $('iEccSub').textContent = 'The receiver has a 256-bit private key k and publishes Q = k·G. For each message the sender picks a fresh random r, sends R = r·G, and uses the shared point S = r·Q to generate a keystream (SHA-256 of S’s x-coordinate and a counter) that is XORed with the message bytes. The receiver rebuilds S = k·R. Real ECIES adds an authentication tag and usually AES; the principle is the same.';
+  $('iEccCt').innerHTML = `<span class="pre">public key Q     </span>${hex(IN.Q.toRawBytes(true))}<br><span class="pre">R = r·G (sent)   </span>${hex(E.R.toRawBytes(true))}<br><span class="pre">ciphertext, ${E.ct.length} bytes </span>${hex(E.ct.slice(0, 80))}${E.ct.length > 80 ? '…' : ''}`;
+  $('iEccChk').className = 'check ' + (back === text ? 'ok' : 'bad');
+  $('iEccChk').textContent = back === text ? '✓ The receiver decrypts with k and gets the message back.' : '✗ ECC decryption failed.';
+  // B · statistics
+  const pl = lettersOf(text), cl = lettersOf(ct), elt = Uint8Array.from(E.ct, b => b % 26);
+  const P = chiCurve(pl, M), C = chiCurve(cl, M), X = chiCurve(elt, M), Cother = chiCurve(cl, other);
+  const thrC = langThreshold(M, cl.length), thrE = langThreshold(M, elt.length);
+  const langIC = 26 * M.p1.reduce((a, p) => a + p * p, 0);
+  $('iLangH').textContent = `Letter distribution of ${IN.lang === 'en' ? 'English' : 'Italian'}`;
+  $('iLangSub').textContent = `Learned from ${int(M.N)} letters of ${IN.lang === 'en' ? 'English' : 'Italian'} prose written for this page. ${IN.lang === 'it' ? 'Italian is rich in vowels (A, E, I, O) and almost never uses J, K, W, X, Y.' : 'E, T, A and O lead; J, Q, X and Z are rare.'}`;
+  ['iLangName', 'iLangName2'].forEach(id => $(id).textContent = IN.lang === 'en' ? 'English' : 'Italian');
+  bars($('iChLang'), { vals: M.p1.map(v => v * 100), labels: AZ, cls: 'f-plain', yfmt: t => t + '%', tipv: i => `${AZ[i]}: ${(M.p1[i] * 100).toFixed(2)}%`, h: 170 });
+  bars($('iChCaesar'), { vals: Array.from(C.cnt), labels: AZ, cls: 'f-sha', exp: AZ.map((_, i) => C.N * M.p1[(i - C.best + 26) % 26]), tipv: i => `${AZ[i]}: ${C.cnt[i]}`, tipl: i => [`expected ${(C.N * M.p1[(i - C.best + 26) % 26]).toFixed(1)} if s = ${C.best}`], h: 170 });
+  bars($('iChEcc'), { vals: Array.from(X.cnt), labels: AZ, cls: 'f-ec', exp: AZ.map((_, i) => X.N * M.p1[(i - X.best + 26) % 26]), tipv: i => `${AZ[i]}: ${X.cnt[i]}`, tipl: i => [`language would give ${(X.N * M.p1[(i - X.best + 26) % 26]).toFixed(1)} at shift ${X.best}`], h: 170 });
+  const top = cnt => AZ[Array.from(cnt).indexOf(Math.max(...cnt))];
+  const rows = [
+    ['Symbols analysed', int(P.N) + ' letters', int(C.N) + ' letters', int(X.N) + ' bytes', 'The ECC ciphertext has one byte per plaintext byte, spaces and punctuation included.'],
+    ['Index of coincidence × 26', ic26(P.cnt).toFixed(2), ic26(C.cnt).toFixed(2), ic26(X.cnt).toFixed(2), `${IN.lang === 'en' ? 'English' : 'Italian'} gives about ${langIC.toFixed(2)}, a flat distribution 1.00. Caesar keeps the plaintext value exactly.`],
+    ['Entropy of the letter distribution (bits)', ent2(P.cnt).toFixed(2), ent2(C.cnt).toFixed(2), ent2(X.cnt).toFixed(2), 'Maximum log₂ 26 = 4.70. Caesar only relabels letters, so it cannot change the entropy.'],
+    ['Most frequent letter', top(P.cnt), top(C.cnt), top(X.cnt), `Under Caesar the top plaintext letter simply moves ${s} places.`],
+    ['Best χ² per letter over 26 shifts', P.out[0].toFixed(3) + ' (s = 0)', C.out[C.best].toFixed(3) + ` (s = ${C.best})`, X.out[X.best].toFixed(3) + ` (s = ${X.best})`, `Threshold for real text of this length: ${thrC.toFixed(3)}.`],
+    ['Looks like the language at some shift?', 'yes', `yes, at s = ${C.best}`, X.out[X.best] < thrE ? 'yes (by chance)' : 'no', 'The decision used in steps C and D.']
+  ];
+  $('iStatT').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="wrap">${r[4]}</td></tr>`).join('');
+  // C · D
+  drawChi($('iChChi'), [{ v: C.out, cls: 'cS', name: 'Caesar', best: C.best }, { v: X.out, cls: 'cE', name: 'ECC', best: X.best }], thrC);
+  const dec = caesar(ct, -C.best), okC = C.best === s;
+  const fakeE = Array.from(elt, v => AZ[(v - X.best + 26) % 26]).join('');
+  $('iTiles').innerHTML = [
+    [`Caesar: s = ${C.best} ${okC ? '✓' : '✗'}`, `${okC ? 'Key recovered' : 'Wrong key'} from the letter distribution alone. Decoded: “${esc(dec.slice(0, 90))}${dec.length > 90 ? '…' : ''}”`],
+    X.out[X.best] >= thrE
+      ? [`ECC: no key ✗`, `The best of the 26 shifts (s = ${X.best}) is still ${(X.out[X.best] / thrE).toFixed(X.out[X.best] / thrE < 10 ? 1 : 0)}× above the threshold and gives “${esc(fakeE.slice(0, 40))}…”. Nothing in the ciphertext looks like ${IN.lang === 'en' ? 'English' : 'Italian'}.`]
+      : [`ECC: no key ✗`, `With only ${X.N} bytes the counts are too few to decide: shift ${X.best} slips under the threshold by chance, yet its “decryption” is gibberish (“${esc(fakeE.slice(0, 30))}…”). Statistics cannot find an ECC key; use a longer message to see the gap clearly.`]
+  ].map(([v, t]) => `<div class="stat"><span class="v">${v}</span><span class="s">${t}</span></div>`).join('');
+  const otherName = IN.lang === 'en' ? 'Italian' : 'English';
+  $('iFind').innerHTML = [
+    `<b>Statistical difference.</b> Caesar is deterministic and letter-by-letter, so its ciphertext has exactly the plaintext's letter statistics, only relabelled (index of coincidence ${ic26(C.cnt).toFixed(2)}, the same as the plaintext). The ECC ciphertext is flat (${ic26(X.cnt).toFixed(2)}, close to 1.00), because every byte is XORed with a pseudo-random keystream derived from a fresh elliptic-curve shared secret.`,
+    `<b>Caesar falls.</b> Comparing the ciphertext with the ${IN.lang === 'en' ? 'English' : 'Italian'} distribution for all 26 shifts gives one clear minimum, at s = ${C.best}${okC ? ', the real key' : ''}. With the ${otherName} distribution instead, the same method ${Cother.best === s ? 'also finds s = ' + s + ', because the two languages share their most common letters (E, A, I, O, T)' : 'picks s = ' + Cother.best + ', which is wrong: the attacker must know the language'}.`,
+    `<b>ECC does not.</b> The same test finds nothing: no shift brings the ECC ciphertext anywhere near the language, because there is no shift to find. ECC is not a letter substitution, its key is a 256-bit number rather than one of 26, and the ciphertext carries no letter statistics. The only remaining attack is on the key itself, which on secp256k1 means about 2<sup>128</sup> operations (§5).`,
+    `<b>Below:</b> §1 builds ECC encryption by hand on the toy curve of HMWK 1, §2–§3 compare the two schemes in detail, §4 tests the frequency attack on many ciphertext lengths, and §5 breaks the toy ECC scheme through its deliberately small key space.`
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
 /* ================= wiring ================= */
 function refreshAll(newR) { if (renderECC(newR) === false) return; renderCaesar(); renderCompare(); renderTarget(); drawScale(); autoAttack(); $('malRun').click(); $('nonceRun').click(); const D = demoSetup(); $('malSub').textContent = `Without knowing k, an attacker adds G to every C₂ of the §1 ciphertext${D.note}.`; $('nonceSub').textContent = `A 400-character passage encrypted with one r for all blocks${D.note}. The attacker never learns k.`; }
 $('curveSel').addEventListener('change', () => {
@@ -3232,10 +3426,21 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme)
 new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 syncTheme();
 let rw = 0, lastW = 0;
-new ResizeObserver(() => { const w = document.querySelector('.sheet').clientWidth; if (Math.abs(w - lastW) < 2) return; const first = !lastW; lastW = w; if (first) return; clearTimeout(rw); rw = setTimeout(() => { renderCompare(); runAttackTool(); setCorpus(CORP); drawExperiment(); drawScale(); }, 200); }).observe(document.querySelector('.sheet'));
+new ResizeObserver(() => { const w = document.querySelector('.sheet').clientWidth; if (Math.abs(w - lastW) < 2) return; const first = !lastW; lastW = w; if (first) return; clearTimeout(rw); rw = setTimeout(() => { renderIntro(); renderCompare(); runAttackTool(); setCorpus(CORP); drawExperiment(); drawScale(); }, 200); }).observe(document.querySelector('.sheet'));
+
+// intro wiring
+document.querySelectorAll('input[name=lang]').forEach(r => r.addEventListener('change', e => { IN.lang = e.target.value; if (!$('iMsg').dataset.custom) $('iMsg').value = LANGS[IN.lang].sample; renderIntro(); }));
+const setIS = v => { v = Math.min(25, Math.max(1, Math.floor(+v) || 1)); IN.s = v; $('iShift').value = v; $('iShiftR').value = v; renderIntro(); };
+$('iShiftR').addEventListener('input', e => setIS(e.target.value));
+$('iShift').addEventListener('change', e => setIS(e.target.value));
+$('iNewKey').addEventListener('click', () => { newIntroKey(); renderIntro(); });
+$('iSample').addEventListener('click', () => { delete $('iMsg').dataset.custom; $('iMsg').value = LANGS[IN.lang].sample; renderIntro(); });
+let iT = 0;
+$('iMsg').addEventListener('input', () => { $('iMsg').dataset.custom = '1'; clearTimeout(iT); iT = setTimeout(renderIntro, 200); });
 
 // first render: complete at rest
 setCorpus(BUILTIN);
+$('iMsg').value = LANGS.en.sample; renderIntro();
 $('atkIn').dataset.truth = ST.shift;
 refreshAll(true);
 setTimeout(async () => { await runExperiment(7); await runScale(false); }, 60);
