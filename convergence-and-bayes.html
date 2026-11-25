@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convergence and Bayes</title>
+<meta name="description" content="Modes of convergence in probability and their role in the LLN and the CLT, why the square root of n appears, and conditional probability, Bayes' theorem, priors, likelihoods and posteriors with interactive examples.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+</head>
+<body>
+<style>
+:root{
+  --paper:#eef2fa; --sheet:#fafcff; --ink:#0f2657; --ink-2:#3a4f82; --ink-3:#66789f;
+  --rule:#0f2657; --hair:rgba(15,38,87,.16); --grid-a:rgba(15,38,87,.045); --grid-b:rgba(15,38,87,.09);
+  --hot:#d2381c; --amber:#f0b000; --wash:rgba(240,176,0,.18); --band:rgba(15,38,87,.08); --on-ink:#fafcff; --ok:#1d7a4a;
+  --ec:#2450e0; --sha:#d47500; --s1:#2450e0; --s2:#e05a1c; --s3:#14946a; --s4:#b8329b; --path:rgba(15,38,87,.30);
+  --f-display:"Archivo","Archivo Narrow","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Martian Mono","JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+    --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+    --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --band:rgba(223,232,255,.10); --on-ink:#0d2856; --ok:#5fd39a;
+    --ec:#2b9bc6; --sha:#d07a10; --s1:#4f8cf0; --s2:#e0672e; --s3:#21a777; --s4:#c45ab3; --path:rgba(223,232,255,.30);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d2856; --sheet:#112f66; --ink:#e8efff; --ink-2:#b2c2e6; --ink-3:#8296c4;
+  --rule:#dfe8ff; --hair:rgba(223,232,255,.18); --grid-a:rgba(200,220,255,.05); --grid-b:rgba(200,220,255,.10);
+  --hot:#ff7657; --amber:#ffc83a; --wash:rgba(255,200,58,.16); --band:rgba(223,232,255,.10); --on-ink:#0d2856; --ok:#5fd39a;
+  --ec:#2b9bc6; --sha:#d07a10; --s1:#4f8cf0; --s2:#e0672e; --s3:#21a777; --s4:#c45ab3; --path:rgba(223,232,255,.30);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  margin:0; color:var(--ink); background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid-b) 1px,transparent 1px),linear-gradient(90deg,var(--grid-b) 1px,transparent 1px),
+    linear-gradient(var(--grid-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-a) 1px,transparent 1px);
+  background-size:80px 80px,80px 80px,16px 16px,16px 16px;
+  font-family:var(--f-body); font-size:16px; line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:28px 56px;
+}
+a{color:inherit;text-underline-offset:3px}
+code{font-family:var(--f-mono);font-size:.88em}
+sub,sup{line-height:0}
+.sheet{max-width:1240px;margin:0 auto;border:2px solid var(--rule);outline:1px solid var(--rule);outline-offset:4px}
+.label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.nc{text-transform:none}
+.mono{font-family:var(--f-mono)}
+.f{font-family:var(--f-mono);font-size:.9em;white-space:nowrap}
+@media (max-width:620px){.f{white-space:normal}}
+.inner > *{min-width:0}
+
+.hero{padding:28px 28px 24px;display:grid;gap:16px;border-bottom:2px solid var(--rule)}
+.hero h1{margin:0;font-family:var(--f-display);font-stretch:70%;font-weight:850;text-transform:uppercase;
+  font-size:clamp(36px,6.6vw,84px);line-height:.92;letter-spacing:-.005em;text-wrap:balance}
+.hero h1 .a{color:var(--hot)}
+.hero .lede{margin:0;max-width:70ch;color:var(--ink-2);font-size:17px}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1.5px solid var(--ink);max-width:1060px}
+@media (max-width:760px){.trio{grid-template-columns:minmax(0,1fr)}}
+.trio > div{padding:12px 14px;display:grid;gap:4px;align-content:start;min-width:0;background:var(--sheet)}
+.trio > div + div{border-left:1.5px solid var(--ink)}
+@media (max-width:760px){.trio > div + div{border-left:0;border-top:1.5px solid var(--ink)}}
+.trio .fx{font-family:var(--f-display);font-stretch:70%;font-weight:800;font-size:clamp(28px,4vw,42px);line-height:1}
+.trio .fx .d{color:var(--hot)}
+.trio b{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:16px}
+.trio .s{font-size:14px;color:var(--ink-2)}
+.trio .spark{width:100%;height:46px;display:block}
+
+.tb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:2px solid var(--rule);margin:0;background:var(--sheet)}
+.tb div{padding:10px 14px 12px;border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);min-width:0}
+.tb dt{margin:0 0 4px}
+.tb dd{margin:0;font-family:var(--f-mono);font-size:14px;font-weight:500;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.themebtn{all:unset;cursor:pointer;font-family:var(--f-mono);font-size:13px;font-weight:500;border-bottom:1.5px solid currentColor}
+.themebtn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+.block{border-bottom:2px solid var(--rule);background:var(--sheet);min-width:0}
+.block:last-child{border-bottom:0}
+.ph{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--hair)}
+.ph h2{margin:0;font-family:var(--f-display);font-stretch:80%;font-weight:800;text-transform:uppercase;font-size:22px;letter-spacing:.01em}
+.ph h2 .tag{font-family:var(--f-mono);font-stretch:100%;font-weight:500;font-size:11px;letter-spacing:.1em;color:var(--ink-3);margin-right:10px;vertical-align:3px}
+.ph .q{font-size:15px;color:var(--ink-2);margin:0;flex-basis:100%}
+.inner{padding:18px;display:grid;gap:18px;min-width:0}
+.prose{max-width:78ch;display:grid;gap:12px}
+.prose p{margin:0}
+.prose h3,.h3{margin:6px 0 0;font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:18px}
+.prose ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.callout{border:2px solid var(--ink);padding:12px 16px;background:var(--wash);max-width:88ch}
+.callout b{font-family:var(--f-display);font-stretch:85%;text-transform:uppercase;font-size:15px;letter-spacing:.02em}
+
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:end}
+.field{display:grid;gap:6px;min-width:0}
+input[type=number],select{font-family:var(--f-mono);font-size:14px;padding:8px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;min-width:0;max-width:100%}
+input[type=range]{accent-color:var(--hot)}
+input:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.btn{font-family:var(--f-mono);font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:9px 12px;border:1.5px solid var(--ink);background:var(--sheet);color:var(--ink);cursor:pointer;border-radius:0;line-height:1}
+.btn:hover{background:var(--wash)}
+.btn.primary{background:var(--ink);color:var(--on-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.status{font-family:var(--f-mono);font-size:12px;margin:0;color:var(--ink-2)}
+.status.ok{color:var(--ok)} .status.bad{color:var(--hot)}
+.krow{display:flex;gap:10px;align-items:center}
+.krow output{font-family:var(--f-mono);font-size:14px;font-weight:700;min-width:54px;font-variant-numeric:tabular-nums}
+.seg{display:flex;flex-wrap:wrap}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;font-family:var(--f-mono);font-size:12px;padding:9px 14px;border:1.5px solid var(--ink);margin-left:-1.5px;cursor:pointer}
+.seg label:first-child span{margin-left:0}
+.seg input:checked + span{background:var(--ink);color:var(--on-ink)}
+.seg input:focus-visible + span{outline:2px solid var(--amber);outline-offset:2px}
+.progress{height:8px;border:1px solid var(--ink);background:var(--paper);position:relative;width:min(320px,100%)}
+.progress span{position:absolute;left:0;top:0;bottom:0;background:var(--hot);width:0}
+
+.pipe{display:grid;gap:0;border:1.5px solid var(--ink)}
+.stn{display:grid;grid-template-columns:minmax(0,240px) minmax(0,1fr);border-bottom:1.5px solid var(--ink)}
+.stn:last-child{border-bottom:0}
+.stn .l{padding:12px 14px;border-right:1px solid var(--hair);display:grid;gap:6px;align-content:start;background:var(--paper)}
+.stn .n{font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+.stn .t{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:18px;line-height:1.1}
+.stn .who{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.stn .r{padding:12px 14px;display:grid;gap:10px;min-width:0}
+@media (max-width:760px){.stn{grid-template-columns:minmax(0,1fr)}.stn .l{border-right:0;border-bottom:1px solid var(--hair)}}
+.note{font-size:14px;color:var(--ink-2);margin:0;max-width:88ch}
+.big{font-family:var(--f-display);font-stretch:70%;font-weight:700;font-size:clamp(22px,3.4vw,34px);line-height:1.05;overflow-wrap:anywhere}
+.key{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:0}
+.key.kb{background:var(--ec)} .key.kr{background:var(--sha)}
+
+.tablewrap{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:500;text-align:left;padding:8px 10px;border-bottom:1.5px solid var(--ink);vertical-align:bottom}
+th.nc{text-transform:none;letter-spacing:.04em;font-size:11px}
+td{padding:7px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+td.num,th.num{text-align:right}
+td.wrap{white-space:normal;font-family:var(--f-body);font-size:14px;color:var(--ink-2);min-width:180px}
+td.nw{white-space:nowrap}
+tr.th td{color:var(--ink-3)}
+tr.best td{background:var(--wash);font-weight:700}
+td.win{color:var(--hot);font-weight:700}
+.ktable td:first-child{font-weight:700;white-space:nowrap}
+.ktable td{min-width:110px}
+
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 22px}
+.cols.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cols.four{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)}.cols.two{grid-template-columns:minmax(0,1fr)}.cols.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.cols.four{grid-template-columns:minmax(0,1fr)}}
+.chart{min-width:0;display:grid;gap:6px;align-content:start}
+.chart h3{margin:0;font-family:var(--f-mono);font-size:12px;font-weight:700;letter-spacing:.03em}
+.chart .sub{font-size:13.5px;color:var(--ink-2);margin:0}
+.chart .cap{font-family:var(--f-mono);font-size:11px;color:var(--ink-2);margin:0;font-variant-numeric:tabular-nums}
+.svgw{width:100%;min-width:0}
+.svgw svg{display:block;touch-action:pan-y}
+.grid-row{display:grid;gap:8px}
+.rowhead{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;border-top:1.5px solid var(--ink);padding-top:8px}
+.rowhead b{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:17px}
+.rowhead span{font-size:13.5px;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-family:var(--f-mono);font-size:11px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;display:inline-block}
+.sw.tick{width:14px;height:0;border-top:2px solid var(--ink)}
+.sw.line{width:18px;height:0;border-top:2px solid currentColor}
+.sw.thin{width:18px;height:0;border-top:1px solid currentColor}
+.sw.dash{width:18px;height:0;border-top:2px dashed currentColor}
+.sw.band{width:16px;height:10px;background:var(--band);border:1px solid var(--hair)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;border:1.5px solid var(--ink)}
+.stat{padding:10px 12px;border:.75px solid var(--ink);display:grid;gap:2px;min-width:0;align-content:start}
+.stat .v{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:28px;line-height:1.05;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.stat .s{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere}
+.findings{margin:0;padding:0;list-style:none;display:grid;gap:8px;max-width:90ch}
+.findings li{padding-left:22px;position:relative}
+.findings li::before{content:"→";position:absolute;left:0;color:var(--hot);font-weight:700}
+.findings b{font-family:var(--f-mono);font-size:.9em}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px;max-width:88ch}
+.steps li{counter-increment:s;padding-left:40px;position:relative}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;display:grid;place-items:center;border:1.5px solid var(--ink);font-family:var(--f-mono);font-size:12px;font-weight:700}
+.steps b{font-family:var(--f-display);font-stretch:85%;font-weight:800;text-transform:uppercase;font-size:15px}
+details.more summary{cursor:pointer;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);list-style:none}
+details.more summary::before{content:"+ ";color:var(--hot);font-weight:700}
+details.more[open] summary::before{content:"− "}
+details.more > div{margin-top:10px;display:grid;gap:10px}
+
+.foot{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between;align-items:center;padding:16px 18px;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);background:var(--sheet)}
+.foot nav{display:flex;flex-wrap:wrap;gap:8px 18px}
+.foot nav a{font-family:var(--f-display);font-stretch:80%;font-weight:800;font-size:18px;text-transform:uppercase;text-decoration:none;border-bottom:3px solid var(--hot);color:var(--ink)}
+
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--sheet);border:1.5px solid var(--ink);padding:7px 9px;font-family:var(--f-mono);font-size:11.5px;line-height:1.5;color:var(--ink-2);max-width:300px}
+#tip strong{display:block;color:var(--ink);font-size:13px}
+#tip .k{display:inline-block;width:12px;height:0;border-top:2px solid;margin-right:6px;vertical-align:3px}
+.g-hair{stroke:var(--hair);stroke-width:1}
+.g-axis{stroke:var(--ink-3);stroke-width:1}
+.g-t{fill:var(--ink-3);font-family:var(--f-mono);font-size:10px}
+.g-tl{fill:var(--ink-2);font-family:var(--f-mono);font-size:10.5px}
+.g-ref{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 4;fill:none}
+.g-cross{stroke:var(--ink-2);stroke-width:1}
+.g-band{fill:var(--band);stroke:none}
+.g-path{fill:none;stroke:var(--path);stroke-width:1}
+.g-best{fill:none;stroke:var(--hot);stroke-width:2}
+.g-mean{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:6 4}
+.g-curve{fill:none;stroke:var(--ink);stroke-width:1.5}
+.f-ec{fill:var(--ec)} .f-sha{fill:var(--sha)} .f-hot{fill:var(--hot)}
+.b-exp{stroke:var(--ink);stroke-width:2}
+.b-hit{fill:transparent}
+.b-hit:hover{fill:var(--wash)}
+.ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.ln.thin{stroke-width:1.25}
+.ln.dash{stroke-dasharray:6 5}
+.ln.dot{stroke-dasharray:2 4}
+.cE{stroke:var(--ec);fill:var(--ec);color:var(--ec)} .cS{stroke:var(--sha);fill:var(--sha);color:var(--sha)} .cI{stroke:var(--ink);fill:var(--ink);color:var(--ink)}
+.ln.cE,.ln.cS,.ln.cI{fill:none}
+.mk{stroke:var(--sheet);stroke-width:2}
+.mk.hollow{fill:var(--sheet);stroke-width:2}
+.mk.hollow.cE{stroke:var(--ec)} .mk.hollow.cS{stroke:var(--sha)}
+.partbar{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;background:var(--ink);color:var(--on-ink);padding:10px 18px;border-bottom:2px solid var(--rule)}
+.partbar b{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.partbar span{font-size:15px;opacity:.85}
+.math{font-family:var(--f-mono);font-size:14px;line-height:1.9;background:var(--paper);border:1.5px solid var(--ink);padding:10px 14px;overflow-x:auto;white-space:nowrap;max-width:88ch}
+.math .c{color:var(--ink-3)}
+.math .hl{color:var(--hot);font-weight:700}
+.code{font-family:var(--f-mono);font-size:13px;line-height:1.7;background:var(--paper);border:1.5px solid var(--ink);padding:12px 14px;overflow-x:auto;margin:0;max-width:88ch;white-space:pre}
+.code .core{background:var(--wash);display:inline-block;width:100%}
+.code .kw{color:var(--ec);font-weight:700}
+.big2{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:22px}
+.sw.vline{width:0;height:12px;border-left:2px solid currentColor}
+.g-vl{stroke-width:2}
+.steps li{min-width:0}
+.math,.code{max-width:100%}
+.c1{stroke:var(--s1);fill:var(--s1);color:var(--s1)} .c2{stroke:var(--s2);fill:var(--s2);color:var(--s2)}
+.c3{stroke:var(--s3);fill:var(--s3);color:var(--s3)} .c4{stroke:var(--s4);fill:var(--s4);color:var(--s4)}
+.ln.c1,.ln.c2,.ln.c3,.ln.c4{fill:none}
+.f-s3{fill:var(--s3)} .f-band2{fill:var(--sha);fill-opacity:.55} .f-strip{fill:var(--ec);fill-opacity:.55}
+.prose{align-content:start}
+.g-fn{fill:none;stroke:var(--ink);stroke-width:2}
+.g-pre{stroke:var(--hot);stroke-width:3}
+td.err{color:var(--ink-2)}
+input[type=text]{font-family:var(--f-mono);font-size:14px;padding:8px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;min-width:0}
+textarea{font-family:var(--f-mono);font-size:13px;padding:8px 10px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;width:100%;min-height:140px;line-height:1.5;resize:vertical}
+textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+table.ct td,table.ct th{text-align:right}
+table.ct td:first-child,table.ct th:first-child{text-align:left}
+table.ct tr.tot td{border-top:1.5px solid var(--ink);font-weight:700}
+table.ct td.tot{font-weight:700;border-left:1.5px solid var(--ink)}
+.cellsub{display:block;font-size:10.5px;color:var(--ink-3)}
+.pos{background:color-mix(in srgb,var(--s1) var(--a),transparent)}
+.neg{background:color-mix(in srgb,var(--s2) var(--a),transparent)}
+.verdict{border:2px solid var(--ink);padding:12px 16px;display:grid;gap:4px;max-width:88ch}
+.verdict .big{font-family:var(--f-display);font-stretch:75%;font-weight:800;font-size:28px;line-height:1.1}
+.verdict.dep .big{color:var(--hot)} .verdict.ind .big{color:var(--ok)}
+.diag text{font-family:var(--f-mono)}
+.g-box{fill:var(--sheet);stroke:var(--ink);stroke-width:1.5}
+.g-arr{stroke:var(--ink);stroke-width:1.8;fill:none}
+.g-arrx{stroke:var(--hot);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.g-boxt{fill:var(--ink);font-family:var(--f-display);font-weight:800;font-size:14px}
+.g-dot{fill:var(--ink)}
+.f-s1{fill:var(--s1)} .f-s2{fill:var(--s2)} .f-s4{fill:var(--s4)}
+.cols.two.wide{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+@media (max-width:900px){.cols.two.wide{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:600px){table.stack thead{display:none} table.stack tr{display:grid;grid-template-columns:minmax(0,1fr);border-bottom:1.5px solid var(--hair);padding:6px 0} table.stack td{border:0;padding:3px 10px;min-width:0!important;white-space:normal}}
+.yes{color:var(--ok);font-weight:700} .no{color:var(--hot);font-weight:700}
+</style>
+
+<div class="sheet" id="top">
+  <header class="hero">
+    <div class="label">Homework · Modes of convergence · Conditional probability and Bayes' theorem</div>
+    <h1>How things converge, <span class="a">how beliefs update</span></h1>
+    <p class="lede">The first part compares the four main ways a sequence of random variables can converge, shows which of them the Law of Large Numbers and the Central Limit Theorem use, and explains where the √n in so many theorems comes from. The second part goes from conditional probability to Bayes' theorem and uses it to turn a prior and a likelihood into a posterior, with two worked examples. The simulations run in the browser.</p>
+    <div class="trio" aria-label="Overview">
+      <div><span class="label">Strongest</span><span class="fx">a.s. &nbsp;·&nbsp; L²</span><b>Every path / on average</b><span class="s">Both imply convergence in probability.</span></div>
+      <div><span class="label">Weakest</span><span class="fx">in distribution</span><b>Only the law converges</b><span class="s">The mode of the CLT.</span></div>
+      <div><span class="label">Bayes</span><span class="fx">posterior ∝ likelihood × prior</span><b>Updating with data</b><span class="s">p(θ | x) = p(x | θ) p(θ) / p(x)</span></div>
+    </div>
+  </header>
+
+  <dl class="tb">
+    <div><dt class="label">Part 1</dt><dd>4 modes of convergence</dd></div>
+    <div><dt class="label">Examples</dt><dd>3 counterexamples, LLN / CLT paths, √n</dd></div>
+    <div><dt class="label">Part 2</dt><dd>Bayes' theorem</dd></div>
+    <div><dt class="label">Examples</dt><dd>intrusion alarm, Beta–Binomial</dd></div>
+    <div><dt class="label">Print</dt><dd><button class="themebtn" id="themeBtn" type="button">Blueprint</button></dd></div>
+  </dl>
+
+  <div class="partbar"><b>Part 1 · Modes of convergence</b><span>X<sub>1</sub>, X<sub>2</sub>, … random variables on the same probability space, X the limit</span></div>
+
+  <section class="block" aria-labelledby="h1x">
+    <div class="ph"><h2 id="h1x"><span class="tag">§1</span>The four modes</h2>
+      <p class="q">A random variable is a function of the outcome ω. "X<sub>n</sub> → X" can mean several things depending on whether we look at every ω, at the probability of being far away, at an average distance, or only at the distributions.</p></div>
+    <div class="inner">
+      <div class="tablewrap"><table class="ktable stack"><thead><tr><th>Mode</th><th>Definition</th><th>What it says</th></tr></thead><tbody>
+        <tr><td>Almost sure<br><span class="nc mono" style="font-weight:400">X<sub>n</sub> → X a.s.</span></td><td class="wrap"><span class="f">P( {ω : X<sub>n</sub>(ω) → X(ω)} ) = 1</span></td><td class="wrap">Take one outcome ω and look at the whole sequence of numbers X<sub>1</sub>(ω), X<sub>2</sub>(ω), …: it converges in the ordinary sense, for all ω except a set of probability 0. A statement about each path.</td></tr>
+        <tr><td>In mean square (L²)<br><span class="nc mono" style="font-weight:400">X<sub>n</sub> → X in L²</span></td><td class="wrap"><span class="f">E[(X<sub>n</sub> − X)²] → 0</span></td><td class="wrap">The average squared distance goes to 0. Large deviations are allowed only if they are rare enough that their squares still average out. Needs finite second moments.</td></tr>
+        <tr><td>In probability<br><span class="nc mono" style="font-weight:400">X<sub>n</sub> →<sup>P</sup> X</span></td><td class="wrap"><span class="f">P(|X<sub>n</sub> − X| &gt; ε) → 0</span> for every ε &gt; 0</td><td class="wrap">For each fixed large n, being far from X is unlikely. It says nothing about the same ω at different n: a path may still jump away infinitely often, at times that become rarer.</td></tr>
+        <tr><td>In distribution<br><span class="nc mono" style="font-weight:400">X<sub>n</sub> ⇒ X</span></td><td class="wrap"><span class="f">F<sub>n</sub>(x) → F(x)</span> at every point x where F is continuous</td><td class="wrap">Only the distribution functions converge. X<sub>n</sub> and X do not even need to live on the same space; the values of X<sub>n</sub> and X need not be close at all.</td></tr>
+      </tbody></table></div>
+      <div class="chart"><h3>How the modes are related</h3><p class="sub">Solid arrows always hold. Dashed red arrows do not hold in general; the counterexamples are in §2.</p><div class="svgw diag" id="chDiag"></div></div>
+      <div class="prose">
+        <p><b>Why the arrows hold.</b> L² ⇒ P follows from Chebyshev's (Markov's) inequality: P(|X<sub>n</sub> − X| &gt; ε) ≤ E[(X<sub>n</sub> − X)²]/ε². a.s. ⇒ P because, if almost every path eventually stays within ε, the probability of being outside at time n goes to 0 (dominated convergence applied to the indicator). P ⇒ distribution because if X<sub>n</sub> is close to X with high probability, P(X<sub>n</sub> ≤ x) is squeezed between P(X ≤ x − ε) and P(X ≤ x + ε), up to small terms. One partial converse: convergence in distribution to a constant c implies convergence in probability to c.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h2x">
+    <div class="ph"><h2 id="h2x"><span class="tag">§2</span>Counterexamples</h2>
+      <p class="q">Each sequence below converges to 0 in some modes but not in others. Each row of the plot is one outcome ω, and a dot marks a time n with X<sub>n</sub>(ω) ≠ 0 (log scale, n = 1 … 10,000).</p></div>
+    <div class="inner">
+      <div class="controls">
+        <div class="field"><span class="label" id="ceLbl">Sequence</span>
+          <div class="seg" role="radiogroup" aria-labelledby="ceLbl">
+            <label><input type="radio" name="ce" value="A" checked><span>A · Bernoulli(1/n)</span></label>
+            <label><input type="radio" name="ce" value="B"><span>B · Bernoulli(1/n²)</span></label>
+            <label><input type="radio" name="ce" value="C"><span>C · n·1{U ≤ 1/n}</span></label>
+          </div></div>
+        <button class="btn" id="ceNew" type="button">New paths</button>
+      </div>
+      <div class="cols two wide">
+        <div class="chart"><h3 id="ceH">40 outcomes, n = 1 … 10,000</h3><div class="svgw" id="chCe"></div></div>
+        <div class="prose" id="ceProse"></div>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Sequence</th><th class="nc">P(X<sub>n</sub> ≠ 0)</th><th class="nc">E[X<sub>n</sub>²]</th><th>In probability</th><th>Almost surely</th><th>In L²</th><th class="num">paths with a dot in (5,000, 10,000]<br><span class="nc">simulated / theory</span></th></tr></thead><tbody id="ceT"></tbody></table></div>
+      <div class="callout"><b>In distribution but not in probability.</b> Let X ~ N(0, 1) and X<sub>n</sub> = −X for every n. Since the normal law is symmetric, every X<sub>n</sub> has exactly the distribution of X, so X<sub>n</sub> ⇒ X trivially. But |X<sub>n</sub> − X| = 2|X| does not depend on n, and P(2|X| &gt; ε) = <span id="ceD"></span> for ε = 0.1, so X<sub>n</sub> does not converge to X in probability. Convergence in distribution compares only laws, not values.</div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h3x">
+    <div class="ph"><h2 id="h3x"><span class="tag">§3</span>The modes in the LLN and the CLT</h2>
+      <p class="q">X<sub>1</sub>, X<sub>2</sub>, … i.i.d. with mean μ and variance σ², X̄<sub>n</sub> = S<sub>n</sub>/n. The simulation uses Exponential(1) data, so μ = σ = 1 and the distribution is clearly not normal.</p></div>
+    <div class="inner">
+      <div class="tablewrap"><table class="ktable stack"><thead><tr><th>Result</th><th>Statement</th><th>Mode</th><th>Conditions</th></tr></thead><tbody>
+        <tr><td>Weak LLN</td><td class="wrap">X̄<sub>n</sub> → μ</td><td class="wrap">in probability (and in L² if σ² &lt; ∞, since E(X̄<sub>n</sub> − μ)² = σ²/n → 0)</td><td class="wrap">Chebyshev's proof needs σ² &lt; ∞; Khinchin's version only needs E|X| &lt; ∞</td></tr>
+        <tr><td>Strong LLN</td><td class="wrap">X̄<sub>n</sub> → μ</td><td class="wrap">almost surely</td><td class="wrap">Kolmogorov: i.i.d. with E|X| &lt; ∞</td></tr>
+        <tr><td>CLT</td><td class="wrap">Z<sub>n</sub> = √n(X̄<sub>n</sub> − μ)/σ ⇒ N(0, 1)</td><td class="wrap">in distribution only</td><td class="wrap">i.i.d. with 0 &lt; σ² &lt; ∞ (Lindeberg for non-identical terms)</td></tr>
+        <tr><td>Law of the iterated logarithm</td><td class="wrap">limsup Z<sub>n</sub>/√(2 log log n) = 1</td><td class="wrap">almost surely</td><td class="wrap">i.i.d., σ² &lt; ∞</td></tr>
+      </tbody></table></div>
+      <div class="controls"><button class="btn" id="llnNew" type="button">New paths</button><p class="status" id="llnStatus"></p></div>
+      <div class="cols">
+        <div class="chart"><h3>X̄<sub>n</sub> along 20 paths</h3><p class="sub">Each path settles at μ = 1 and stays there: almost sure convergence.</p><div class="svgw" id="chBar"></div></div>
+        <div class="chart"><h3>Z<sub>n</sub> = √n(X̄<sub>n</sub> − 1) along the same paths</h3><p class="sub">The paths never settle. Dashed: ±√(2 log log n), the envelope of the law of the iterated logarithm.</p><div class="svgw" id="chZ"></div></div>
+        <div class="chart"><h3 id="zhH">Z<sub>n</sub> across paths, n = 10,000</h3><p class="sub">Histogram over 2,000 paths. Ticks: N(0, 1). Only the distribution converges.</p><div class="svgw" id="chZh"></div></div>
+      </div>
+      <ul class="findings" id="fLln"></ul>
+      <div class="prose">
+        <h3>The same modes in statistics</h3>
+        <ul>
+          <li><b>Consistency</b> of an estimator θ̂<sub>n</sub> means θ̂<sub>n</sub> → θ in probability (strong consistency: a.s.). The sample mean, the sample variance and maximum-likelihood estimators are consistent under mild conditions, by the LLN.</li>
+          <li><b>Asymptotic normality</b> means √n(θ̂<sub>n</sub> − θ) ⇒ N(0, v), a convergence in distribution. It gives standard errors, confidence intervals and tests. For the MLE, v is the inverse Fisher information.</li>
+          <li><b>Glivenko–Cantelli</b>: the empirical distribution function converges to F uniformly, almost surely. This is why the data "look like" the population for large n.</li>
+          <li><b>Slutsky and the delta method</b> combine the modes: if Z<sub>n</sub> ⇒ Z and Y<sub>n</sub> → c in probability, then Z<sub>n</sub>Y<sub>n</sub> ⇒ cZ. This is what allows replacing σ by the sample s in √n(X̄<sub>n</sub> − μ)/s ⇒ N(0, 1).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h4x">
+    <div class="ph"><h2 id="h4x"><span class="tag">§4</span>Why √n</h2>
+      <p class="q">The √n comes from how variances add.</p></div>
+    <div class="inner">
+      <div class="math">Var(S<sub>n</sub>) = Σ<sub>i</sub> Var(X<sub>i</sub>) + 2 Σ<sub>i&lt;j</sub> Cov(X<sub>i</sub>, X<sub>j</sub>) <span class="c">&nbsp;&nbsp;always</span><br>
+        = nσ² <span class="c">&nbsp;&nbsp;if the X<sub>i</sub> are uncorrelated (independence is more than enough)</span><br>
+        ⇒ sd(S<sub>n</sub>) = σ√n, &nbsp;&nbsp;sd(X̄<sub>n</sub>) = σ/√n, &nbsp;&nbsp;Var(S<sub>n</sub>/n<sup>a</sup>) = σ² n<sup>1 − 2a</sup></div>
+      <div class="prose">
+        <p>The mean of S<sub>n</sub> grows like n, but its standard deviation only like √n, because independent errors partly cancel. Dividing by n gives a variance σ²/n → 0, which is the LLN. Dividing by √n gives a variance that stays at σ², the only scaling that leads to a non-degenerate limit, which is the CLT. With any other power the limit is either a constant or does not exist.</p>
+        <p>Independence is the condition that removes the covariance terms. If the observations are correlated, the covariances add up and the variance of the mean changes. For an AR(1) series with lag-one correlation ρ, Var(X̄<sub>n</sub>) ≈ (σ²/n)·(1 + ρ)/(1 − ρ): still a 1/√n rate, but as if we had only n(1 − ρ)/(1 + ρ) independent observations. With perfect correlation (all X<sub>i</sub> equal) there is no averaging at all.</p>
+        <p>In statistics the same fact gives the standard error σ/√n, the 95% interval x̄ ± 1.96·s/√n, and the rule that the precision only improves with the square root of the sample size: to halve the error we need four times as much data.</p>
+      </div>
+      <div class="controls">
+        <div class="field"><label class="label" for="rhoIn">Correlation <span class="nc">ρ</span> between neighbours (AR(1))</label>
+          <div class="krow"><input type="range" id="rhoIn" min="-0.8" max="0.95" step="0.05" value="0.6" style="width:220px"><output id="rhoOut">0.60</output></div></div>
+      </div>
+      <div class="cols two">
+        <div class="chart"><h3>Standard deviation of X̄<sub>n</sub> vs n (log–log)</h3><p class="sub">2,000 simulated series per n, σ² = 1 for every X<sub>i</sub>. Lines: theory.</p><div class="svgw" id="chSqrt"></div>
+          <div class="legend"><span class="c1"><i class="sw line"></i>independent: 1/√n</span><span class="c2"><i class="sw line"></i>AR(1) with the chosen ρ</span><span class="c4"><i class="sw line"></i>all equal (ρ = 1)</span></div></div>
+        <div class="prose" id="sqrtProse"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="partbar"><b>Part 2 · Conditional probability and Bayes' theorem</b><span>prior × likelihood → posterior</span></div>
+
+  <section class="block" aria-labelledby="h5x">
+    <div class="ph"><h2 id="h5x"><span class="tag">§5</span>Conditional probability and Bayes' theorem</h2>
+      <p class="q">Conditioning means restricting attention to the outcomes where B happened, and renormalising.</p></div>
+    <div class="inner">
+      <div class="cols two">
+        <div class="prose">
+          <h3>In probability</h3>
+          <div class="math">P(A | B) = P(A ∩ B) / P(B), &nbsp;P(B) &gt; 0<br>
+            P(A ∩ B) = P(A | B) P(B) = P(B | A) P(A)<br>
+            P(B) = Σ<sub>i</sub> P(B | A<sub>i</sub>) P(A<sub>i</sub>) <span class="c">&nbsp;(A<sub>i</sub> a partition)</span><br>
+            <span class="hl">P(A<sub>i</sub> | B) = P(B | A<sub>i</sub>) P(A<sub>i</sub>) / Σ<sub>j</sub> P(B | A<sub>j</sub>) P(A<sub>j</sub>)</span></div>
+          <p>The last line is Bayes' theorem. It follows from writing P(A ∩ B) in two ways and using the law of total probability for the denominator. It "inverts" a conditional probability: from P(B | A), which is often easy to know, to P(A | B), which is what we want. The two are different, and confusing them is a common mistake.</p>
+        </div>
+        <div class="prose">
+          <h3>In statistics</h3>
+          <p>The unknown is a parameter θ and the evidence is the data x. The three pieces of Bayesian inference are:</p>
+          <ul>
+            <li><b>Prior</b> p(θ): what we believe about θ before seeing the data, from earlier studies, expert knowledge, or a deliberately vague choice.</li>
+            <li><b>Likelihood</b> L(θ) = p(x | θ): how probable the observed data are for each value of θ. It is a function of θ with x fixed, and it is not a probability distribution over θ (it need not integrate to 1).</li>
+            <li><b>Posterior</b> p(θ | x): what we believe after seeing the data.</li>
+          </ul>
+          <div class="math">p(θ | x) = p(x | θ) p(θ) / p(x) &nbsp;∝&nbsp; likelihood × prior<br><span class="c">p(x) = ∫ p(x | θ) p(θ) dθ only normalises</span></div>
+          <p>The posterior after one batch of data is the prior for the next one, so learning is a chain of updates. With independent data the order does not matter: updating with x<sub>1</sub> and then x<sub>2</sub> gives the same posterior as updating with both at once.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h6x">
+    <div class="ph"><h2 id="h6x"><span class="tag">§6</span>Example 1: an intrusion alarm</h2>
+      <p class="q">A detector raises an alarm. How likely is it that there really is an attack? The prior is how rare attacks are among the monitored events; the likelihood is how the detector behaves with and without an attack.</p></div>
+    <div class="inner">
+      <div class="controls">
+        <div class="field"><label class="label" for="prIn">Prior P(attack)</label><div class="krow"><input type="range" id="prIn" min="-5" max="-0.3" step="0.05" value="-3" style="width:180px"><output id="prOut">0.001</output></div></div>
+        <div class="field"><label class="label" for="seIn">Sensitivity P(alarm | attack)</label><div class="krow"><input type="range" id="seIn" min="0.5" max="0.999" step="0.001" value="0.99" style="width:160px"><output id="seOut">0.990</output></div></div>
+        <div class="field"><label class="label" for="fpIn">False-alarm rate P(alarm | no attack)</label><div class="krow"><input type="range" id="fpIn" min="-4" max="-0.7" step="0.05" value="-2" style="width:160px"><output id="fpOut">0.010</output></div></div>
+      </div>
+      <div class="stats" id="alTiles"></div>
+      <div class="cols two">
+        <div class="chart"><h3>Out of 100,000 monitored events</h3><p class="sub">Natural frequencies: the posterior is the share of alarms that are real attacks.</p><div class="svgw" id="chFreq"></div><p class="cap" id="freqCap"></p>
+          <div class="legend"><span><i class="sw" style="background:var(--s2)"></i>real attack, alarm</span><span><i class="sw" style="background:var(--s1)"></i>no attack, alarm (false)</span></div></div>
+        <div class="chart"><h3>Posterior P(attack | alarm) vs prior (log scale)</h3><p class="sub">Same detector, different base rates. Dashed: posterior after a second, independent alarm.</p><div class="svgw" id="chPost"></div>
+          <div class="legend"><span class="c2"><i class="sw line"></i>after one alarm</span><span class="c2"><i class="sw dash"></i>after two alarms</span><span><i class="sw dash" style="color:var(--ink-3)"></i>posterior = prior</span></div></div>
+      </div>
+      <ul class="findings" id="fAl"></ul>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h7x">
+    <div class="ph"><h2 id="h7x"><span class="tag">§7</span>Example 2: estimating a success rate</h2>
+      <p class="q">θ is the probability that a penetration attempt succeeds. We observe k successes in n attempts. With a Beta(a, b) prior the posterior is again a Beta distribution, so the update is just counting.</p></div>
+    <div class="inner">
+      <div class="math">prior θ ~ Beta(a, b) ∝ θ<sup>a−1</sup>(1 − θ)<sup>b−1</sup> &nbsp;&nbsp; likelihood L(θ) = C(n, k) θ<sup>k</sup>(1 − θ)<sup>n−k</sup><br>
+        <span class="hl">posterior θ | data ~ Beta(a + k, b + n − k)</span>, &nbsp;mean (a + k)/(a + b + n)</div>
+      <div class="controls">
+        <div class="field"><label class="label" for="priorSel">Prior</label>
+          <select id="priorSel"><option value="1,1">Uniform · Beta(1, 1)</option><option value="0.5,0.5">Jeffreys · Beta(½, ½)</option><option value="2,18" selected>Sceptical · Beta(2, 18), mean 0.10</option><option value="18,6">Optimistic · Beta(18, 6), mean 0.75</option></select></div>
+        <div class="field"><label class="label" for="ptrueIn">True θ (used to simulate)</label><div class="krow"><input type="range" id="ptrueIn" min="0.05" max="0.95" step="0.05" value="0.35" style="width:160px"><output id="ptrueOut">0.35</output></div></div>
+        <div class="field"><label class="label" for="nObs">Attempts observed <span class="nc">n</span></label><div class="krow"><input type="range" id="nObs" min="0" max="7" step="1" value="2" style="width:180px"><output id="nObsOut">10</output></div></div>
+        <button class="btn" id="bNew" type="button">New data</button>
+      </div>
+      <div class="stats" id="bTiles"></div>
+      <div class="cols two">
+        <div class="chart"><h3 id="bH">Prior, likelihood and posterior</h3><p class="sub">The likelihood is rescaled to area 1 so that it can be drawn on the same axis.</p><div class="svgw" id="chBeta"></div>
+          <div class="legend"><span class="c1"><i class="sw line"></i>prior</span><span class="c3"><i class="sw dash"></i>likelihood (scaled)</span><span class="c2"><i class="sw line"></i>posterior</span><span><i class="sw vline" style="color:var(--ink)"></i>true θ</span></div></div>
+        <div class="chart"><h3>Posterior mean as the data arrive, for each prior</h3><p class="sub">Same data stream for all four priors. Band: 95% credible interval for the selected prior. Dashed: true θ.</p><div class="svgw" id="chConv2"></div>
+          <div class="legend" id="convLeg"></div></div>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Prior</th><th class="num">Posterior mean</th><th class="num">95% credible interval</th><th class="num">Width</th><th class="num">Effect of the prior<br><span class="nc">posterior mean − k/n</span></th></tr></thead><tbody id="bT"></tbody></table></div>
+      <ul class="findings" id="fB"></ul>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h8x">
+    <div class="ph"><h2 id="h8x"><span class="tag">§8</span>Advantages, limitations and influence on the conclusions</h2></div>
+    <div class="inner">
+      <div class="cols two">
+        <div class="prose">
+          <h3>Advantages</h3>
+          <ul>
+            <li>Prior knowledge enters in an explicit, checkable way, for example the base rate of attacks in §6. Ignoring it is exactly the base-rate fallacy.</li>
+            <li>The result is a probability statement about the unknown: "P(θ &gt; 0.5 | data) = 0.03" or "there is a 95% probability that θ is in this interval", which is how people usually want to read a confidence interval.</li>
+            <li>Updating is sequential and coherent: today's posterior is tomorrow's prior.</li>
+            <li>With little data, a reasonable prior stabilises the estimate (shrinkage), as with the sceptical prior for n = 2 or 3.</li>
+          </ul>
+        </div>
+        <div class="prose">
+          <h3>Limitations</h3>
+          <ul>
+            <li>The prior is a choice, and with small samples it can decide the conclusion. Different priors can give different answers from the same data; a sensitivity analysis (as in the table of §7) should be part of the report.</li>
+            <li>"Non-informative" priors are not unique: uniform and Jeffreys priors already differ, and a uniform prior on θ is not uniform on log θ.</li>
+            <li>The posterior can only be as good as the likelihood. If the model is wrong (for example, alarms that are not independent), Bayes' theorem still runs but the posterior is misleading.</li>
+            <li>Outside conjugate pairs like Beta–Binomial the normalising integral p(x) has no closed form, and the posterior must be computed numerically (grids, MCMC).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout"><b>Link with part 1.</b> As n grows, the likelihood becomes sharper and sharper around the true θ, its width shrinks like 1/√n, and any prior that gives positive weight near θ is overwhelmed. The posterior then concentrates at the true value and becomes approximately normal with standard deviation of order 1/√n (Bernstein–von Mises theorem). This is the Bayesian counterpart of consistency and asymptotic normality: for large samples, Bayesian and frequentist conclusions agree, and the prior only matters when the data are few.</div>
+    </div>
+  </section>
+</div>
+<div id="tip" hidden></div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const tick = () => new Promise(r => setTimeout(r, 0));
+const int = v => Math.round(v).toLocaleString('en-US');
+const SUPD = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+const sup = e => String(e).split('').map(c => SUPD[c]).join('');
+const pow10 = e => e === 0 ? '1' : e === 1 ? '10' : '10' + sup(e);
+const sci = (v, d) => { const [a, e] = v.toExponential(d).split('e'); return a + '×10' + sup(+e); };
+const z0 = s => /^-0\.?0*$/.test(s) ? s.slice(1) : s;
+function fs(v, s = 3) {
+  if (!Number.isFinite(v)) return '—'; if (v === 0) return '0';
+  const a = Math.abs(v); if (a >= 1e7 || a < 1e-3) return sci(v, s - 1);
+  const d = Math.max(0, s - 1 - Math.floor(Math.log10(a))); return v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+}
+const pct = (v, d = 1) => Number.isFinite(v) ? (v * 100).toFixed(d) + '%' : '—';
+function pp(v) { if (!Number.isFinite(v)) return '—'; if (v === 0) return '0'; if (v < 1e-4) return sci(v, 1); return v < 0.01 ? v.toFixed(4) : v.toFixed(3); }
+const nLab = v => v < 1 ? pow10(Math.round(Math.log10(v))) : v >= 1e4 && Math.log10(v) % 1 === 0 ? pow10(Math.log10(v)) : int(v);
+
+function logGrid(n, N) { const out = []; let last = 0; for (let i = 0; i < N; i++) { const k = Math.round(Math.pow(n, i / (N - 1))); if (k > last) { out.push(k); last = k; } } return out; }
+const NSV = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) { const e = document.createElementNS(NSV, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); if (parent) parent.appendChild(e); return e; }
+function txt(s, x, y, cls, anchor, content) { const t = el('text', { x, y, class: cls, 'text-anchor': anchor || 'start' }, s); t.textContent = content; return t; }
+const tip = $('tip');
+function showTip(ev, strong, lines) {
+  tip.textContent = ''; const s = document.createElement('strong'); s.textContent = strong; tip.appendChild(s);
+  for (const l of lines) { const d = document.createElement('div'); if (Array.isArray(l)) { const k = document.createElement('span'); k.className = 'k ' + l[0]; d.appendChild(k); d.appendChild(document.createTextNode(l[1])); } else d.textContent = l; tip.appendChild(d); }
+  tip.hidden = false; const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14; if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = Math.max(4, x) + 'px'; tip.style.top = Math.max(4, y) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+function niceTicks(lo, hi, count = 4) {
+  const span = hi - lo; if (span <= 0) return [lo];
+  const raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+  const out = []; for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9 * Math.abs(step); v += step) out.push(+v.toFixed(10)); return out;
+}
+function tickLab(v) { const a = Math.abs(v); if (a >= 1e4) return (v / 1000).toLocaleString('en-US') + 'k'; return String(+v.toPrecision(6)); }
+function svgBox(wrap, h) { wrap.textContent = ''; const w = Math.max(220, wrap.clientWidth); return { s: el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, role: 'img' }, wrap), w, h }; }
+function marker(s, shape, x, y, cls, r = 4.5) {
+  if (shape === 'circle') return el('circle', { cx: x, cy: y, r, class: cls + ' mk' }, s);
+  if (shape === 'square') return el('rect', { x: x - r, y: y - r, width: 2 * r, height: 2 * r, class: cls + ' mk' }, s);
+  return el('path', { d: `M${x},${y - r - 1} L${x + r + 1},${y + r} L${x - r - 1},${y + r}Z`, class: cls + ' mk' }, s);
+}
+const pathD = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+function logX(s, lo, hi, m, w, h, label) {
+  const L0 = Math.log10(lo), L1 = Math.log10(hi), X = v => m.l + (Math.log10(v) - L0) / (L1 - L0 || 1) * (w - m.l - m.r);
+  for (let e = Math.ceil(L0 - 1e-9); e <= L1 + 1e-9; e++) { const v = 10 ** e; if (w < 420 && e % 2 && e !== Math.round(L1)) continue; txt(s, X(v), h - m.b + 15, 'g-t', 'middle', nLab(v)); el('line', { x1: X(v), x2: X(v), y1: h - m.b, y2: h - m.b + 4, class: 'g-axis' }, s); }
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  if (label) txt(s, w - m.r, h - 2, 'g-tl', 'end', label);
+  return X;
+}
+function linY(s, lo, hi, m, w, h, fmt, count = 4) {
+  const Y = v => h - m.b - (v - lo) / (hi - lo || 1) * (h - m.t - m.b);
+  for (const t of niceTicks(lo, hi, count)) { el('line', { x1: m.l, x2: w - m.r, y1: Y(t), y2: Y(t), class: 'g-hair' }, s); txt(s, m.l - 6, Y(t) + 3.5, 'g-t', 'end', fmt ? fmt(t) : tickLab(t)); }
+  return Y;
+}
+function logY(s, lo, hi, m, w, h) {
+  const L0 = Math.floor(Math.log10(lo)), L1 = Math.ceil(Math.log10(hi)), Y = v => h - m.b - (Math.log10(Math.max(v, 10 ** L0)) - L0) / (L1 - L0 || 1) * (h - m.t - m.b);
+  const every = Math.ceil((L1 - L0) / 6);
+  for (let e = L0; e <= L1; e++) { if ((e - L0) % every) continue; el('line', { x1: m.l, x2: w - m.r, y1: Y(10 ** e), y2: Y(10 ** e), class: 'g-hair' }, s); txt(s, m.l - 6, Y(10 ** e) + 3.5, 'g-t', 'end', pow10(e)); }
+  return Y;
+}
+function crosshair(s, m, w, h, xs, onIdx) {
+  const cross = el('line', { x1: 0, x2: 0, y1: m.t, y2: h - m.b, class: 'g-cross', visibility: 'hidden' }, s);
+  const hit = el('rect', { x: m.l - 8, y: m.t, width: w - m.l - m.r + 16, height: h - m.t - m.b, fill: 'transparent' }, s);
+  const move = ev => {
+    const r = s.getBoundingClientRect(), x = ev.clientX - r.left; let lo = 0, hi = xs.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] < x) lo = mid; else hi = mid; }
+    const i = Math.abs(xs[lo] - x) <= Math.abs(xs[hi] - x) ? lo : hi;
+    cross.setAttribute('x1', xs[i]); cross.setAttribute('x2', xs[i]); cross.setAttribute('visibility', 'visible'); onIdx(ev, i);
+  };
+  hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move);
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+function drawHist(wrap, c) {
+  const { s, w, h } = svgBox(wrap, c.h || 130), m = { l: c.ml ?? 34, r: 8, t: 8, b: 24 };
+  const X = v => m.l + (v - c.lo) / (c.hi - c.lo) * (w - m.l - m.r);
+  const vals = c.vals, nb = vals.length;
+  let yMax = 0; for (let i = 0; i < nb; i++) yMax = Math.max(yMax, vals[i], c.exp ? c.exp[i] : 0);
+  if (c.curve) for (let i = 0; i <= 60; i++) yMax = Math.max(yMax, c.curve(c.lo + i / 60 * (c.hi - c.lo)));
+  yMax = yMax * 1.08 || 1;
+  const Y = linY(s, 0, yMax, m, w, h, c.yfmt, 3);
+  for (const t of niceTicks(c.lo, c.hi, w < 300 ? 3 : 4)) txt(s, X(t), h - m.b + 14, 'g-t', 'middle', c.xfmt ? c.xfmt(t) : tickLab(t));
+  el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s);
+  for (let i = 0; i < nb; i++) {
+    const x0 = X(c.edges[i]), x1 = X(c.edges[i + 1]), bw = x1 - x0, gap = bw > 4 ? 1 : 0;
+    if (vals[i] > 0) el('rect', { x: x0 + gap / 2, y: Y(vals[i]), width: Math.max(1, bw - gap), height: Y(0) - Y(vals[i]), class: c.cls }, s);
+    if (c.exp && c.exp[i] > yMax * 0.004 && bw >= 3) el('line', { x1: x0, x2: x1, y1: Y(c.exp[i]), y2: Y(c.exp[i]), class: 'b-exp' }, s);
+  }
+  if (c.curve) { const pts = []; for (let i = 0; i <= 160; i++) { const v = c.lo + i / 160 * (c.hi - c.lo); pts.push([X(v), Y(c.curve(v))]); } el('path', { d: pathD(pts), class: 'g-curve' }, s); }
+  for (const v of c.vlines || []) { if (v.x < c.lo || v.x > c.hi) continue; const l = el('line', { x1: X(v.x), x2: X(v.x), y1: m.t, y2: h - m.b, class: 'g-vl' }, s); l.style.stroke = v.color; if (v.dash) l.setAttribute('stroke-dasharray', '5 4'); }
+  if (c.xlabel) txt(s, w - m.r, h - 2, 'g-tl', 'end', c.xlabel);
+  const mids = []; for (let i = 0; i < nb; i++) mids.push((X(c.edges[i]) + X(c.edges[i + 1])) / 2);
+  const hit = el('rect', { x: m.l, y: m.t, width: w - m.l - m.r, height: h - m.t - m.b, fill: 'transparent' }, s);
+  const move = ev => { const r = s.getBoundingClientRect(), x = ev.clientX - r.left; let best = 0; for (let i = 1; i < nb; i++) if (Math.abs(mids[i] - x) < Math.abs(mids[best] - x)) best = i; showTip(ev, c.tipT(best), c.tipL(best)); };
+  hit.addEventListener('pointermove', move); hit.addEventListener('pointerleave', hideTip);
+}
+
+const Phi = x => jStat.normal.cdf(x, 0, 1);
+
+function arrow(s, x1, y1, x2, y2, cls, curve) {
+  const d = curve ? `M${x1},${y1} Q${(x1 + x2) / 2 + curve[0]},${(y1 + y2) / 2 + curve[1]} ${x2},${y2}` : `M${x1},${y1} L${x2},${y2}`;
+  el('path', { d, class: cls }, s);
+  const cx = curve ? (x1 + x2) / 2 + curve[0] : x1, cy = curve ? (y1 + y2) / 2 + curve[1] : y1, a = Math.atan2(y2 - cy, x2 - cx), L = 9;
+  const head = el('path', { d: `M${x2},${y2} L${x2 - L * Math.cos(a - 0.4)},${y2 - L * Math.sin(a - 0.4)} L${x2 - L * Math.cos(a + 0.4)},${y2 - L * Math.sin(a + 0.4)}Z` }, s);
+  head.style.fill = cls === 'g-arrx' ? 'var(--hot)' : 'var(--ink)';
+}
+function drawDiag() {
+  const wrap = $('chDiag'), narrow = wrap.clientWidth < 560;
+  if (!narrow) return drawDiagWide();
+  const { s, w, h } = svgBox(wrap, 300), bw = Math.min(130, w * 0.4), bh = 40;
+  const B = { as: [8, 10], l2: [w - bw - 8, 10], p: [w / 2 - bw / 2, 125], d: [w / 2 - bw / 2, 245] };
+  const lab = { as: 'a.s.', l2: 'L²', p: 'in prob.', d: 'in dist.' };
+  for (const k in B) { el('rect', { x: B[k][0], y: B[k][1], width: bw, height: bh, class: 'g-box' }, s); txt(s, B[k][0] + bw / 2, B[k][1] + bh / 2 + 5, 'g-boxt', 'middle', lab[k]); }
+  const bot = k => [B[k][0] + bw / 2, B[k][1] + bh], top = k => [B[k][0] + bw / 2, B[k][1]];
+  arrow(s, bot('as')[0], bot('as')[1], B.p[0] + 12, B.p[1], 'g-arr');
+  arrow(s, bot('l2')[0], bot('l2')[1], B.p[0] + bw - 12, B.p[1], 'g-arr');
+  arrow(s, bot('p')[0] - 14, bot('p')[1], top('d')[0] - 14, top('d')[1], 'g-arr');
+  arrow(s, B.p[0], B.p[1] + 10, B.as[0] + 16, B.as[1] + bh, 'g-arrx', [-36, 10]);
+  arrow(s, B.p[0] + bw, B.p[1] + 10, B.l2[0] + bw - 16, B.l2[1] + bh, 'g-arrx', [36, 10]);
+  arrow(s, top('d')[0] + 14, top('d')[1], bot('p')[0] + 14, bot('p')[1], 'g-arrx', [30, 0]);
+  const tx = (x, y, str, anchor) => { const e = txt(s, x, y, 'g-tl', anchor || 'middle', str); e.style.fill = 'var(--hot)'; };
+  tx(B.as[0] + 4, B.p[1] - 6, '✗ A', 'start'); tx(B.l2[0] + bw - 4, B.p[1] - 6, '✗ C', 'end'); tx(bot('p')[0] + 50, (bot('p')[1] + top('d')[1]) / 2 + 4, '✗ −X', 'start');
+  txt(s, w / 2, B.as[1] + bh + 18, 'g-t', 'middle', 'a.s. ⇎ L²');
+}
+function drawDiagWide() {
+  const { s, w, h } = svgBox($('chDiag'), 250), bw = Math.min(150, w * 0.24), bh = 44;
+  const B = { as: [w * 0.04, 22], l2: [w * 0.04, 178], p: [w * 0.5 - bw / 2, 100], d: [w * 0.96 - bw, 100] };
+  const lab = { as: 'almost sure', l2: 'mean square (L²)', p: 'in probability', d: 'in distribution' };
+  for (const k in B) { el('rect', { x: B[k][0], y: B[k][1], width: bw, height: bh, class: 'g-box' }, s); const t = txt(s, B[k][0] + bw / 2, B[k][1] + bh / 2 + 5, 'g-boxt', 'middle', w < 520 ? { as: 'a.s.', l2: 'L²', p: 'in prob.', d: 'in dist.' }[k] : lab[k]); }
+  const R = k => [B[k][0] + bw, B[k][1] + bh / 2], Lf = k => [B[k][0], B[k][1] + bh / 2];
+  arrow(s, R('as')[0], R('as')[1], Lf('p')[0], Lf('p')[1] - 8, 'g-arr');
+  arrow(s, R('l2')[0], R('l2')[1], Lf('p')[0], Lf('p')[1] + 8, 'g-arr');
+  arrow(s, R('p')[0], R('p')[1], Lf('d')[0], Lf('d')[1], 'g-arr');
+  arrow(s, Lf('p')[0] + 10, B.p[1], B.as[0] + bw / 2, B.as[1] + bh, 'g-arrx', [30, 40]);
+  arrow(s, Lf('p')[0] + 10, B.p[1] + bh, B.l2[0] + bw / 2, B.l2[1], 'g-arrx', [30, -40]);
+  arrow(s, Lf('d')[0], B.d[1] + bh, R('p')[0], B.p[1] + bh, 'g-arrx', [0, 40]);
+  const t = (x, y, str, cls = 'g-tl') => txt(s, x, y, cls, 'middle', str);
+  t(R('as')[0] + (Lf('p')[0] - R('as')[0]) * 0.55, R('as')[1] + (Lf('p')[1] - R('as')[1]) * 0.55 - 12, w < 520 ? '' : 'always');
+  t(R('l2')[0] + (Lf('p')[0] - R('l2')[0]) * 0.55, R('l2')[1] + (Lf('p')[1] - R('l2')[1]) * 0.55 + 22, w < 520 ? '' : 'Chebyshev');
+  t((R('p')[0] + Lf('d')[0]) / 2, R('p')[1] - 8, 'always');
+  const tx = (x, y, str) => { const e = txt(s, x, y, 'g-tl', 'middle', str); e.style.fill = 'var(--hot)'; };
+  tx((Lf('p')[0] + B.as[0] + bw / 2) / 2 + 16, (B.p[1] + B.as[1] + bh) / 2 + 26, '✗ A');
+  tx((Lf('p')[0] + B.l2[0] + bw / 2) / 2 + 16, (B.p[1] + bh + B.l2[1]) / 2 - 18, '✗ C');
+  tx((Lf('d')[0] + R('p')[0]) / 2, B.p[1] + bh + 36, '✗ X_n = −X');
+  txt(s, B.as[0], (B.as[1] + bh + B.l2[1]) / 2 + 4, 'g-t', 'start', w < 520 ? 'a.s. ⇎ L²' : 'a.s. and L²: neither implies the other');
+}
+
+const NMAX = 10000;
+const CE = {
+  A: { name: 'A · independent X_n ~ Bernoulli(1/n)', p: n => 1 / n, path: () => { const o = []; for (let n = 1; n <= NMAX; n++) if (Math.random() < 1 / n) o.push(n); return o; }, theory: 0.5,
+    text: `<h3>A: independent Bernoulli(1/n)</h3><p>P(X<sub>n</sub> ≠ 0) = 1/n → 0, so X<sub>n</sub> → 0 in probability, and E[X<sub>n</sub>²] = 1/n → 0, so also in L². But Σ 1/n = ∞, and for independent events the second Borel–Cantelli lemma says that infinitely many of them happen. Every path keeps having ones forever, more and more spread out: <b>no almost sure convergence</b>.</p><p>In fact the chance of at least one 1 between n = 5,000 and 10,000 is 1 − Π(1 − 1/n) = 5,000/10,000 = ½, whatever the starting point: doubling the horizon always gives a 50% chance of another jump.</p>` },
+  B: { name: 'B · independent X_n ~ Bernoulli(1/n²)', p: n => 1 / (n * n), path: () => { const o = []; for (let n = 1; n <= NMAX; n++) if (Math.random() < 1 / (n * n)) o.push(n); return o; }, theory: 1 / 5000 - 1 / 10000,
+    text: `<h3>B: independent Bernoulli(1/n²)</h3><p>Now Σ 1/n² = π²/6 is finite, and the first Borel–Cantelli lemma says that only finitely many X<sub>n</sub> are 1, with probability 1. After a few early ones every path is 0 for good: <b>almost sure convergence</b>, and also convergence in probability and in L².</p><p>The only difference from A is how fast P(X<sub>n</sub> ≠ 0) goes to 0. A rate of 1/n is enough for convergence in probability but not for almost sure convergence.</p>` },
+  C: { name: 'C · X_n = n·1{U ≤ 1/n}, one U per path', p: n => 1 / n, path: () => { const U = Math.random(), o = []; for (let n = 1; n <= Math.min(NMAX, Math.floor(1 / U)); n++) o.push(n); return o; }, theory: 1 / 5001,
+    text: `<h3>C: n·1{U ≤ 1/n}</h3><p>Each path draws one U ~ Uniform(0, 1). X<sub>n</sub> = n as long as n ≤ 1/U and 0 afterwards, so every path (with U &gt; 0) is eventually 0: <b>almost sure convergence</b>, and therefore also in probability.</p><p>But when X<sub>n</sub> is not 0 it is large: E[X<sub>n</sub>²] = n² · P(U ≤ 1/n) = n → ∞. The rare paths that are still non-zero carry growing weight, so there is <b>no convergence in L²</b>. Almost sure convergence and mean-square convergence do not imply each other (A and C).</p>` }
+};
+let CE_SEL = 'A', CE_PATHS = {};
+function cePaths(k, fresh) { if (fresh || !CE_PATHS[k]) CE_PATHS[k] = Array.from({ length: 40 }, CE[k].path); return CE_PATHS[k]; }
+function ceLate(k) {
+  const M = 4000; let hit = 0;
+  if (k === 'C') { for (let j = 0; j < M; j++) if (Math.floor(1 / Math.random()) > 5000) hit++; return hit / M; }
+  const p = CE[k].p;
+  for (let j = 0; j < M; j++) { for (let n = 5001; n <= NMAX; n++) if (Math.random() < p(n)) { hit++; break; } }
+  return hit / M;
+}
+const LATE = {};
+function renderCe(fresh) {
+  const k = CE_SEL, paths = cePaths(k, fresh);
+  $('ceH').textContent = `${CE[k].name}: 40 outcomes, n = 1 … 10,000`;
+  const { s, w, h } = svgBox($('chCe'), 300), m = { l: 30, r: 10, t: 8, b: 30 };
+  const X = logX(s, 1, NMAX, m, w, h, 'n'), rowH = (h - m.t - m.b) / 40;
+  paths.forEach((p, i) => {
+    const y = m.t + (i + 0.5) * rowH;
+    el('line', { x1: m.l, x2: w - m.r, y1: y, y2: y, class: 'g-hair' }, s);
+    if (k === 'C' && p.length) { const l = el('line', { x1: X(1), x2: X(p[p.length - 1]), y1: y, y2: y, class: 'ln c2' }, s); l.style.strokeWidth = Math.max(1.5, rowH * 0.6); }
+    else for (const n of p) el('circle', { cx: X(n), cy: y, r: Math.max(1.6, rowH * 0.32), class: 'g-dot' }, s);
+  });
+  txt(s, m.l - 6, m.t + 8, 'g-t', 'end', 'ω');
+  $('ceProse').innerHTML = CE[k].text;
+  for (const kk of ['A', 'B', 'C']) if (fresh || LATE[kk] === undefined) LATE[kk] = ceLate(kk);
+  const rows = [
+    ['A', '1/n', '1/n', 'yes', 'no', 'yes'],
+    ['B', '1/n²', '1/n²', 'yes', 'yes', 'yes'],
+    ['C', '1/n', 'n', 'yes', 'yes', 'no']
+  ];
+  const yn = v => `<span class="${v === 'yes' ? 'yes' : 'no'}">${v}</span>`;
+  $('ceT').innerHTML = rows.map(r => `<tr${r[0] === k ? ' class="best"' : ''}><td class="nw">${CE[r[0]].name}</td><td>${r[1]}</td><td>${r[2]}</td><td>${yn(r[3])}</td><td>${yn(r[4])}</td><td>${yn(r[5])}</td><td class="num">${LATE[r[0]].toFixed(4)} / ${CE[r[0]].theory.toFixed(4)}</td></tr>`).join('');
+  $('ceD').textContent = (2 * (1 - Phi(0.05))).toFixed(4);
+}
+
+let LLN = null;
+async function simLln() {
+  const M = 2000, N = 10000, idx = logGrid(N, 160), keep = 20, bars = [], zs = new Float64Array(M), zh = new Float64Array(M);
+  $('llnStatus').textContent = 'Simulating 2,000 paths of 10,000 exponential values…';
+  await tick();
+  for (let j = 0; j < M; j++) {
+    let s = 0, ii = 0; const rec = j < keep ? [] : null;
+    for (let n = 1; n <= N; n++) {
+      s += -Math.log(1 - Math.random());
+      if (rec && n === idx[ii]) { rec.push(s / n); ii++; }
+      if (n === N / 2) zh[j] = Math.sqrt(n) * (s / n - 1);
+    }
+    zs[j] = Math.sqrt(N) * (s / N - 1);
+    if (rec) bars.push(rec);
+    if (j % 250 === 249) await tick();
+  }
+  LLN = { idx, bars, zs, zh, N };
+  $('llnStatus').textContent = 'Done.';
+  renderLln();
+}
+function renderLln() {
+  if (!LLN) return;
+  const { idx, bars, zs, zh, N } = LLN;
+  { const { s, w, h } = svgBox($('chBar'), 250), m = { l: 40, r: 10, t: 10, b: 30 };
+    const Y = linY(s, 0, 2.2, m, w, h), X = logX(s, 1, N, m, w, h, 'n'), cl = v => Y(Math.min(2.2, v));
+    el('line', { x1: m.l, x2: w - m.r, y1: Y(1), y2: Y(1), class: 'g-mean' }, s);
+    bars.forEach((b, j) => { const p = el('path', { d: pathD(b.map((v, i) => [X(idx[i]), cl(v)])), class: j === 0 ? 'g-best' : 'g-path' }, s); }); }
+  { const { s, w, h } = svgBox($('chZ'), 250), m = { l: 40, r: 10, t: 10, b: 30 };
+    const Y = linY(s, -4, 4, m, w, h), X = logX(s, 1, N, m, w, h, 'n'), cl = v => Y(Math.max(-4, Math.min(4, v)));
+    const env = idx.filter(n => n >= 3);
+    for (const sg of [1, -1]) el('path', { d: pathD(env.map(n => [X(n), Y(sg * Math.sqrt(2 * Math.log(Math.log(n))))])), class: 'g-ref' }, s);
+    el('line', { x1: m.l, x2: w - m.r, y1: Y(0), y2: Y(0), class: 'g-hair' }, s);
+    bars.forEach((b, j) => el('path', { d: pathD(b.map((v, i) => [X(idx[i]), cl(Math.sqrt(idx[i]) * (v - 1))])), class: j === 0 ? 'g-best' : 'g-path' }, s)); }
+  { const edges = Array.from({ length: 33 }, (_, i) => -4 + i * 0.25), cnt = new Float64Array(32);
+    for (const z of zs) { const i = Math.floor((z + 4) / 0.25); if (i >= 0 && i < 32) cnt[i]++; }
+    const exp = edges.slice(0, -1).map((a, i) => Phi(edges[i + 1]) - Phi(a));
+    drawHist($('chZh'), { lo: -4, hi: 4, edges, vals: Array.from(cnt, c => c / zs.length), exp, cls: 'f-sha', h: 250, ml: 40, xlabel: 'Z', yfmt: t => (t * 100).toFixed(0) + '%',
+      tipT: i => `Z in [${edges[i]}, ${edges[i + 1]})`, tipL: i => [`paths: ${int(cnt[i])} (${pct(cnt[i] / zs.length)})`, `N(0, 1): ${pct(exp[i])}`] }); }
+  const i1000 = idx.findIndex(n => n >= 1000);
+  const maxDev = Math.max(...bars.map(b => Math.max(...b.slice(i1000).map(v => Math.abs(v - 1)))));
+  const zArr = Array.from(zs), inside = zArr.filter(z => Math.abs(z) <= 1.96).length / zs.length;
+  const corr = jStat.corrcoeff(zArr, Array.from(zh));
+  $('fLln').innerHTML = [
+    `<b>Strong LLN.</b> After n = 1,000 none of the 20 paths of X̄<sub>n</sub> leaves the interval 1 ± ${maxDev.toFixed(3)}, and the band keeps shrinking. Each path converges, not just the probability at a fixed n.`,
+    `<b>CLT.</b> Across the 2,000 paths, Z at n = 10,000 has mean ${jStat.mean(zArr).toFixed(3)} and standard deviation ${jStat.stdev(zArr, true).toFixed(3)}, and ${pct(inside)} of the values are within ±1.96 (N(0, 1): 95.0%), even though the data are exponential.`,
+    `<b>Why only in distribution.</b> Along one path Z<sub>n</sub> keeps moving: it is correlated with its earlier values (correlation between Z at n = 5,000 and n = 10,000 over the 2,000 paths: ${corr.toFixed(2)}, theory √½ ≈ 0.71) but it never settles, and by the law of the iterated logarithm it reaches the ±√(2 log log n) envelope again and again. There is no random variable Z with Z<sub>n</sub> → Z in probability; only the distribution of Z<sub>n</sub> converges.`
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
+const SQ_NS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+let RHO = 0.6;
+const arVarMean = (n, r) => { let s = n; for (let k = 1; k < n; k++) s += 2 * (n - k) * Math.pow(r, k); return s / (n * n); };
+function simSd(rho) {
+  const M = 2000, N = 1000, sums = SQ_NS.map(() => []), c = Math.sqrt(1 - rho * rho);
+  for (let j = 0; j < M; j++) {
+    let x = jStat.normal.sample(0, 1), s = 0, ii = 0;
+    for (let n = 1; n <= N; n++) { if (n > 1) x = rho * x + c * jStat.normal.sample(0, 1); s += x; if (n === SQ_NS[ii]) { sums[ii].push(s / n); ii++; } }
+  }
+  return sums.map(a => jStat.stdev(a, true));
+}
+let SQ = null;
+function renderSqrt(resim) {
+  if (resim || !SQ) SQ = { iid: SQ && !resim ? SQ.iid : (SQ ? SQ.iid : simSd(0)), ar: simSd(RHO) };
+  const { s, w, h } = svgBox($('chSqrt'), 270), m = { l: 50, r: 10, t: 10, b: 30 };
+  const Y = logY(s, 0.01, 3, m, w, h), X = logX(s, 1, 1000, m, w, h, 'n'), g = logGrid(1000, 60);
+  const lines = [[n => 1 / Math.sqrt(n), 'c1'], [n => Math.sqrt(arVarMean(n, RHO)), 'c2'], [() => 1, 'c4']];
+  for (const [f, c] of lines) el('path', { d: pathD(g.map(n => [X(n), Y(f(n))])), class: 'ln thin ' + c }, s);
+  SQ_NS.forEach((n, i) => { marker(s, 'circle', X(n), Y(SQ.iid[i]), 'c1', 4); marker(s, 'square', X(n), Y(SQ.ar[i]), 'c2', 4); marker(s, 'tri', X(n), Y(1), 'c4', 4); });
+  crosshair(s, m, w, h, SQ_NS.map(X), (ev, i) => { const n = SQ_NS[i]; showTip(ev, `n = ${n}`, [['c1', `independent: ${SQ.iid[i].toFixed(4)} (theory ${(1 / Math.sqrt(n)).toFixed(4)})`], ['c2', `AR(1), ρ = ${RHO.toFixed(2)}: ${SQ.ar[i].toFixed(4)} (theory ${Math.sqrt(arVarMean(n, RHO)).toFixed(4)})`], ['c4', 'all equal: 1']]); });
+  const f = (1 + RHO) / (1 - RHO), nEff = 1000 / f, slope = (Math.log10(SQ.ar[9]) - Math.log10(SQ.ar[6])) / (Math.log10(1000) - Math.log10(100));
+  $('sqrtProse').innerHTML = `<h3>What the simulation shows</h3><p>With independent data the standard deviation of X̄<sub>n</sub> falls on the line 1/√n: ${SQ.iid[9].toFixed(4)} at n = 1,000 against 1/√1000 = 0.0316.</p><p>With ρ = ${RHO.toFixed(2)} the covariances do not cancel. At n = 1,000 the standard deviation is ${SQ.ar[9].toFixed(4)}, ${(SQ.ar[9] / SQ.iid[9]).toFixed(2)} times the independent value (theory √((1 + ρ)/(1 − ρ)) = ${Math.sqrt(f).toFixed(2)}). The slope between n = 100 and 1,000 is still ${slope.toFixed(2)}, so the rate is √n, but the 1,000 correlated values are worth only about ${int(nEff)} independent ones.${RHO < 0 ? ' With negative correlation neighbouring errors cancel even more, and the mean is more precise than for independent data.' : ''}</p><p>If all values are equal (ρ = 1), averaging does not help at all and the standard deviation stays at 1. A standard error computed as s/√n on correlated data would therefore be ${RHO > 0 ? 'too small, giving intervals that are too narrow' : 'too large'}.</p>`;
+}
+
+const AL = { p: 0.001, se: 0.99, fp: 0.01 };
+const cnt = v => (Math.round(v * 10) / 10).toLocaleString('en-US');
+const post = (p, se, fp) => se * p / (se * p + fp * (1 - p));
+function renderAlarm() {
+  const { p, se, fp } = AL, p1 = post(p, se, fp), p2 = post(p1, se, fp), pa = se * p + fp * (1 - p), pn = (1 - se) * p / ((1 - se) * p + (1 - fp) * (1 - p));
+  $('prOut').textContent = fs(p, 2); $('seOut').textContent = se.toFixed(3); $('fpOut').textContent = fs(fp, 2);
+  const tiles = [
+    ['P(alarm)', fs(pa, 3), 'Law of total probability: P(alarm | attack)P(attack) + P(alarm | no attack)P(no attack).'],
+    ['P(attack | alarm)', pct(p1), 'Posterior after one alarm, by Bayes\' theorem.'],
+    ['After a 2nd alarm', pct(p2), 'The first posterior becomes the prior; the alarms are assumed independent given the state.'],
+    ['P(attack | no alarm)', fs(pn, 2), 'A silent detector makes an attack even less likely than the prior.']
+  ];
+  $('alTiles').innerHTML = tiles.map(t => `<div class="stat"><span class="label">${t[0]}</span><span class="v">${t[1]}</span><span class="s">${t[2]}</span></div>`).join('');
+  const N = 100000, att = N * p, TP = att * se, FN = att - TP, FP = (N - att) * fp;
+  { const { s, w, h } = svgBox($('chFreq'), 90), m = { l: 110, r: 14, t: 10, b: 26 };
+    const tot = TP + FP, X = v => m.l + v / tot * (w - m.l - m.r), bh = 34, y0 = m.t + 8;
+    txt(s, m.l - 8, y0 + bh / 2 + 4, 'g-tl', 'end', `${int(tot)} alarms`);
+    const r1 = el('rect', { x: X(0), y: y0, width: Math.max(1, X(TP) - X(0)), height: bh, class: 'f-s2' }, s);
+    const r2 = el('rect', { x: X(TP) + (TP > 0 ? 2 : 0), y: y0, width: Math.max(1, X(tot) - X(TP) - 2), height: bh, class: 'f-s1' }, s);
+    r1.addEventListener('pointermove', ev => showTip(ev, 'Real attacks with an alarm', [`${fs(TP, 3)} of ${int(tot)} alarms (${pct(TP / tot)})`])); r1.addEventListener('pointerleave', hideTip);
+    r2.addEventListener('pointermove', ev => showTip(ev, 'False alarms', [`${fs(FP, 3)} of ${int(tot)} alarms (${pct(FP / tot)})`])); r2.addEventListener('pointerleave', hideTip);
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) txt(s, X(t * tot), h - m.b + 14, 'g-t', 'middle', pct(t, 0));
+    $('freqCap').textContent = `${cnt(att)} attacks: ${cnt(TP)} detected, ${cnt(FN)} missed · ${cnt(N - att)} normal events: ${cnt(FP)} false alarms`; }
+  { const { s, w, h } = svgBox($('chPost'), 250), m = { l: 44, r: 10, t: 10, b: 30 };
+    const Y = linY(s, 0, 1, m, w, h, t => pct(t, 0)), X = logX(s, 1e-5, 0.5, m, w, h, 'prior P(attack)'), g = Array.from({ length: 121 }, (_, i) => Math.pow(10, -5 + i * Math.log10(0.5e5) / 120));
+    el('path', { d: pathD(g.map(q => [X(q), Y(q)])), class: 'g-ref' }, s);
+    el('path', { d: pathD(g.map(q => [X(q), Y(post(q, se, fp))])), class: 'ln c2' }, s);
+    el('path', { d: pathD(g.map(q => [X(q), Y(post(post(q, se, fp), se, fp))])), class: 'ln dash c2' }, s);
+    marker(s, 'circle', X(p), Y(p1), 'c2', 5); marker(s, 'circle', X(p), Y(p2), 'c2', 4);
+    crosshair(s, m, w, h, g.map(X), (ev, i) => showTip(ev, `prior ${fs(g[i], 2)}`, [['c2', `after one alarm: ${pct(post(g[i], se, fp))}`], ['c2', `after two: ${pct(post(post(g[i], se, fp), se, fp))}`]])); }
+  const lr = se / fp;
+  $('fAl').innerHTML = [
+    `With a prior of ${fs(p, 2)}, a sensitivity of ${pct(se)} and a false-alarm rate of ${pct(fp)}, only ${pct(p1)} of alarms are real attacks. The detector is accurate, but attacks are so rare that the ${cnt(FP)} false alarms per 100,000 events outnumber the ${cnt(TP)} true ones. Reading P(alarm | attack) = ${pct(se)} as P(attack | alarm) is the base-rate fallacy.`,
+    `In odds form Bayes' theorem reads: posterior odds = likelihood ratio × prior odds. Here the likelihood ratio of an alarm is ${fs(lr, 3)}, so an alarm multiplies the odds of an attack by ${fs(lr, 3)}. The prior decides where we start, the likelihood how far the evidence moves us.`,
+    `A second independent alarm starts from ${pct(p1)} and gives ${pct(p2)}. For a rare event it is more useful to lower the false-alarm rate than to raise the sensitivity: try moving the two sliders.`
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
+const PRIORS = [{ a: 1, b: 1, name: 'Uniform', cls: 'cI' }, { a: 0.5, b: 0.5, name: 'Jeffreys', cls: 'c3' }, { a: 2, b: 18, name: 'Sceptical', cls: 'c4' }, { a: 18, b: 6, name: 'Optimistic', cls: 'c2' }];
+const NOBS = [0, 3, 10, 30, 100, 300, 1000];
+const BB = { prior: 2, theta: 0.35, nI: 2, data: [] };
+function newData() { BB.data = Array.from({ length: 1000 }, () => Math.random() < BB.theta ? 1 : 0); }
+const ci95 = (a, b) => [jStat.beta.inv(0.025, a, b), jStat.beta.inv(0.975, a, b)];
+function renderBeta() {
+  const P = PRIORS[BB.prior], n = NOBS[BB.nI], k = BB.data.slice(0, n).reduce((x, y) => x + y, 0), a1 = P.a + k, b1 = P.b + n - k;
+  $('nObs').max = NOBS.length - 1; $('nObs').value = BB.nI; $('nObsOut').textContent = int(n); $('ptrueOut').textContent = BB.theta.toFixed(2);
+  const [lo, hi] = ci95(a1, b1), cpL = k > 0 ? jStat.beta.inv(0.025, k, n - k + 1) : 0, cpU = k < n ? jStat.beta.inv(0.975, k + 1, n - k) : 1;
+  const tiles = [
+    ['Data', `${k} / ${n}`, n ? `successes / attempts, MLE k/n = ${(k / n).toFixed(3)}` : 'no data yet: the posterior is the prior'],
+    ['Posterior', `Beta(${fs(a1, 3)}, ${fs(b1, 3)})`, `prior Beta(${P.a}, ${P.b}) plus ${k} successes and ${n - k} failures`],
+    ['Posterior mean', (a1 / (a1 + b1)).toFixed(3), `MAP (mode): ${a1 > 1 && b1 > 1 ? ((a1 - 1) / (a1 + b1 - 2)).toFixed(3) : '—'}`],
+    ['95% credible interval', `${lo.toFixed(3)} – ${hi.toFixed(3)}`, n ? `frequentist 95% (Clopper–Pearson): ${cpL.toFixed(3)} – ${cpU.toFixed(3)}` : 'from the prior alone']
+  ];
+  $('bTiles').innerHTML = tiles.map(t => `<div class="stat"><span class="label">${t[0]}</span><span class="v">${t[1]}</span><span class="s">${t[2]}</span></div>`).join('');
+  $('bH').textContent = `Prior, likelihood and posterior · ${P.name} prior, n = ${int(n)}`;
+  { const { s, w, h } = svgBox($('chBeta'), 260), m = { l: 40, r: 10, t: 10, b: 30 };
+    const xs = Array.from({ length: 301 }, (_, i) => 0.0025 + i * 0.995 / 300);
+    const pr = xs.map(x => jStat.beta.pdf(x, P.a, P.b)), li = xs.map(x => n ? jStat.beta.pdf(x, k + 1, n - k + 1) : 1), po = xs.map(x => jStat.beta.pdf(x, a1, b1));
+    const inner = (arr) => Math.max(...arr.filter((v, i) => xs[i] > 0.03 && xs[i] < 0.97 && Number.isFinite(v)));
+    const ymax = Math.max(inner(pr), inner(li), inner(po)) * 1.1;
+    const Y = linY(s, 0, ymax, m, w, h, t => t.toFixed(t < 1 ? 1 : 0)), X = v => m.l + v * (w - m.l - m.r), cl = v => Y(Math.min(ymax, Number.isFinite(v) ? v : ymax));
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) txt(s, X(t), h - m.b + 15, 'g-t', 'middle', String(t));
+    el('line', { x1: m.l, x2: w - m.r, y1: h - m.b + .5, y2: h - m.b + .5, class: 'g-axis' }, s); txt(s, w - m.r, h - 2, 'g-tl', 'end', 'θ');
+    const ci = xs.map((x, i) => [x, po[i]]).filter(([x]) => x >= lo && x <= hi);
+    if (ci.length) el('path', { d: pathD([[X(ci[0][0]), Y(0)]].concat(ci.map(([x, v]) => [X(x), cl(v)])).concat([[X(ci[ci.length - 1][0]), Y(0)]])) + 'Z', class: 'g-band', style: 'fill:color-mix(in srgb,var(--s2) 18%,transparent)' }, s);
+    el('path', { d: pathD(xs.map((x, i) => [X(x), cl(pr[i])])), class: 'ln c1' }, s);
+    el('path', { d: pathD(xs.map((x, i) => [X(x), cl(li[i])])), class: 'ln dash c3' }, s);
+    el('path', { d: pathD(xs.map((x, i) => [X(x), cl(po[i])])), class: 'ln c2' }, s);
+    const tl = el('line', { x1: X(BB.theta), x2: X(BB.theta), y1: m.t, y2: h - m.b, class: 'g-vl' }, s); tl.style.stroke = 'var(--ink)';
+    crosshair(s, m, w, h, xs.map(X), (ev, i) => showTip(ev, `θ = ${xs[i].toFixed(3)}`, [['c1', `prior ${pr[i].toFixed(3)}`], ['c3', `likelihood (scaled) ${li[i].toFixed(3)}`], ['c2', `posterior ${po[i].toFixed(3)}`]])); }
+  { const { s, w, h } = svgBox($('chConv2'), 260), m = { l: 40, r: 10, t: 10, b: 30 }, ns = logGrid(1000, 80);
+    const cum = []; let c = 0; for (let i = 0; i < 1000; i++) { c += BB.data[i]; cum.push(c); }
+    const kk = n => cum[n - 1], Y = linY(s, 0, 1, m, w, h), X = logX(s, 1, 1000, m, w, h, 'attempts n');
+    const band = ns.map(n => ci95(P.a + kk(n), P.b + n - kk(n)));
+    el('path', { d: pathD(ns.map((n, i) => [X(n), Y(band[i][1])]).concat(ns.map((n, i) => [X(n), Y(band[i][0])]).reverse())) + 'Z', class: 'g-band' }, s);
+    el('line', { x1: m.l, x2: w - m.r, y1: Y(BB.theta), y2: Y(BB.theta), class: 'g-mean' }, s);
+    for (const Q of PRIORS) { const l = el('path', { d: pathD(ns.map(n => [X(n), Y((Q.a + kk(n)) / (Q.a + Q.b + n))])), class: 'ln ' + Q.cls }, s); if (Q !== P) l.style.strokeWidth = 1.25; }
+    if (n) el('line', { x1: X(Math.max(1, n)), x2: X(Math.max(1, n)), y1: m.t, y2: h - m.b, class: 'g-hair', 'stroke-width': 2 }, s);
+    crosshair(s, m, w, h, ns.map(X), (ev, i) => showTip(ev, `n = ${ns[i]}, k = ${kk(ns[i])}`, PRIORS.map(Q => [Q.cls, `${Q.name}: ${((Q.a + kk(ns[i])) / (Q.a + Q.b + ns[i])).toFixed(3)}`]))); }
+  $('convLeg').innerHTML = PRIORS.map(Q => `<span class="${Q.cls}"><i class="sw line"></i>${Q.name} Beta(${Q.a}, ${Q.b})</span>`).join('');
+  const rows = PRIORS.map(Q => { const A = Q.a + k, B = Q.b + n - k, [l, u] = ci95(A, B), mean = A / (A + B); return { Q, mean, l, u }; });
+  $('bT').innerHTML = rows.map(r => `<tr${r.Q === P ? ' class="best"' : ''}><td>${r.Q.name} · Beta(${r.Q.a}, ${r.Q.b})</td><td class="num">${r.mean.toFixed(3)}</td><td class="num">${r.l.toFixed(3)} – ${r.u.toFixed(3)}</td><td class="num">${(r.u - r.l).toFixed(3)}</td><td class="num">${n ? z0((r.mean - k / n).toFixed(3)) : '—'}</td></tr>`).join('');
+  const spread = Math.max(...rows.map(r => r.mean)) - Math.min(...rows.map(r => r.mean));
+  const big = NOBS[NOBS.length - 1], kB = BB.data.reduce((x, y) => x + y, 0), sp1000 = (() => { const ms = PRIORS.map(Q => (Q.a + kB) / (Q.a + Q.b + big)); return Math.max(...ms) - Math.min(...ms); })();
+  const w10 = (() => { const k10 = BB.data.slice(0, 10).reduce((x, y) => x + y, 0), [l, u] = ci95(P.a + k10, P.b + 10 - k10); return u - l; })(), [l1, u1] = ci95(P.a + kB, P.b + big - kB);
+  $('fB').innerHTML = [
+    `With n = ${int(n)} the four priors give posterior means between ${Math.min(...rows.map(r => r.mean)).toFixed(3)} and ${Math.max(...rows.map(r => r.mean)).toFixed(3)} (a spread of ${spread.toFixed(3)}). ${n <= 10 ? 'With so little data the prior still decides a large part of the answer: the sceptical and the optimistic analyst do not agree.' : 'The data already dominate the priors that are not too strong.'}`,
+    `The posterior mean is a weighted average of the prior mean and the data: (a + k)/(a + b + n) = w·a/(a + b) + (1 − w)·k/n with w = (a + b)/(a + b + n). A prior counts like a + b earlier observations, so Beta(2, 18) and Beta(18, 6) are worth 20 and 24 attempts and need much more data to be overruled than the uniform or Jeffreys prior.`,
+    `With all 1,000 attempts the four posterior means differ by only ${sp1000.toFixed(4)} and the true θ = ${BB.theta.toFixed(2)} is inside the ${P.name.toLowerCase()} 95% interval (${l1.toFixed(3)} – ${u1.toFixed(3)}). The width of that interval went from ${w10.toFixed(3)} at n = 10 to ${(u1 - l1).toFixed(3)} at n = 1,000, about 10 times smaller for 100 times more data: the 1/√n rate from part 1.`
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
+document.querySelectorAll('input[name=ce]').forEach(r => r.addEventListener('change', e => { CE_SEL = e.target.value; renderCe(false); }));
+$('ceNew').addEventListener('click', () => renderCe(true));
+$('llnNew').addEventListener('click', simLln);
+let rT = 0; $('rhoIn').addEventListener('input', e => { RHO = +e.target.value; $('rhoOut').textContent = RHO.toFixed(2); clearTimeout(rT); rT = setTimeout(() => { SQ = { iid: SQ.iid, ar: simSd(RHO) }; renderSqrt(false); }, 150); });
+$('prIn').addEventListener('input', e => { AL.p = Math.pow(10, +e.target.value); renderAlarm(); });
+$('seIn').addEventListener('input', e => { AL.se = +e.target.value; renderAlarm(); });
+$('fpIn').addEventListener('input', e => { AL.fp = Math.pow(10, +e.target.value); renderAlarm(); });
+$('priorSel').addEventListener('change', e => { BB.prior = e.target.selectedIndex; renderBeta(); });
+$('ptrueIn').addEventListener('input', e => { BB.theta = +e.target.value; newData(); renderBeta(); });
+$('nObs').addEventListener('input', e => { BB.nI = +e.target.value; renderBeta(); });
+$('bNew').addEventListener('click', () => { newData(); renderBeta(); });
+
+function currentDark() { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; }
+function syncTheme() { $('themeBtn').textContent = currentDark() ? 'Whiteprint' : 'Blueprint'; }
+$('themeBtn').addEventListener('click', () => { document.documentElement.dataset.theme = currentDark() ? 'light' : 'dark'; });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+syncTheme();
+let rw = 0, lastW = 0;
+new ResizeObserver(() => { const w = document.querySelector('.sheet').clientWidth; if (Math.abs(w - lastW) < 2) return; const first = !lastW; lastW = w; if (first) return; clearTimeout(rw); rw = setTimeout(() => { drawDiag(); renderCe(false); renderLln(); renderSqrt(false); renderAlarm(); renderBeta(); }, 200); }).observe(document.querySelector('.sheet'));
+
+(async () => {
+  newData(); $('priorSel').selectedIndex = BB.prior;
+  for (const f of [drawDiag, () => renderCe(false), renderAlarm, renderBeta, () => renderSqrt(true)]) { try { f(); } catch (e) { console.error(e); } await tick(); }
+  await simLln();
+  document.body.dataset.ready = '1';
+})();
+})();
+</script>
+</body>
+</html>
